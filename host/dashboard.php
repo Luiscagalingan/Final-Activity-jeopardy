@@ -26,7 +26,11 @@ async function api(action, data = {}) {
     const form = new FormData();
     form.append('action', action);
     for (const k in data) form.append(k, data[k]);
-    const res = await fetch('../api/action.php', { method: 'POST', body: form });
+    const res = await fetch('../api/action.php', { 
+        method: 'POST', 
+        body: form,
+        credentials: 'same-origin'
+    });
     return res.json();
 }
 
@@ -42,17 +46,20 @@ function escapeHtml(s) {
 let currentState = null;
 
 function teamListHtml(teams) {
-    return teams.map(t => `
+    return teams.map(t => {
+        const label = t.status === 'eliminated' ? 'Eliminated'
+            : t.status === 'finalist' ? 'Finalist'
+            : t.status === 'winner' ? 'Winner'
+            : 'Active';
+        return `
         <div class="team-row">
             <div><span class="team-name">${escapeHtml(t.name)}</span>
-                <span class="status-tag status-${t.status}">${t.status}</span></div>
+                <span class="status-tag status-${t.status}">${label}</span></div>
             <div>
                 <span class="team-score">${t.score} pts</span>
-                ${t.status === 'active' ? `<button class="btn-sm btn-danger" onclick="eliminateTeam(${t.id})">Eliminate</button>` : ''}
-                ${t.status === 'eliminated' ? `<button class="btn-sm" onclick="reinstateTeam(${t.id})">Reinstate</button>` : ''}
             </div>
         </div>
-    `).join('');
+    `}).join('');
 }
 
 function judgeButtonsHtml(teams) {
@@ -96,8 +103,9 @@ function render(state) {
             <h2>1. Register teams</h2>
             <form onsubmit="return addTeam(event)">
                 <input type="text" id="newTeamName" placeholder="Team name" required>
-                <button class="btn-primary" type="submit">Add team</button>
+                <button class="btn-primary" type="submit" id="addTeamBtn">Add team</button>
             </form>
+            <div id="addTeamStatus" style="margin-top:10px;"></div>
         </div>`;
     }
 
@@ -157,7 +165,12 @@ function render(state) {
         html += `<div class="card">
             <h2>CTF resolution: ${escapeHtml(c.title)}</h2>
             <div class="timer">${formatTime(c.remaining)}</div>
-            <div class="ctf-prompt">${escapeHtml(c.prompt)}</div>
+            ${c.prompt_visible ? `
+                <div class="ctf-prompt">${escapeHtml(c.prompt)}</div>
+            ` : `
+                <div class="ctf-prompt muted">The cipher is hidden. Click the button below to reveal it.</div>
+                <button class="btn-primary" onclick="revealCipher()">Reveal cipher</button>
+            `}
             <p class="muted"><strong>Host hint:</strong> ${escapeHtml(c.hint || '')}</p>
             <p class="muted">Waiting for a finalist to submit the correct flag from the Team Submission page...</p>
             <h3>Manual override</h3>
@@ -176,11 +189,16 @@ function render(state) {
 
     // ---------- Right column: teams + phase controls ----------
     html += `<div>`;
-    html += `<div class="card"><h2>Teams</h2>${teamListHtml(state.teams)}</div>`;
+    const activeCount = state.teams.filter(t => t.status === 'active').length;
+    const eliminatedCount = state.teams.filter(t => t.status === 'eliminated').length;
+    html += `<div class="card"><h2>Teams</h2>
+        <p class="muted">Active: ${activeCount} · Eliminated: ${eliminatedCount}</p>
+        ${teamListHtml(state.teams)}
+    </div>`;
 
     html += `<div class="card"><h2>Game controls</h2>`;
     if (state.phase === 'lobby') {
-        html += `<button class="btn-primary" ${state.teams.length < 2 ? 'disabled' : ''} onclick="startGame()">Start elimination round</button>`;
+        html += `<button class="btn-primary" ${state.teams.length < 3 ? 'disabled' : ''} onclick="startGame()">Start elimination round</button>`;
     }
     if (state.phase === 'elimination') {
         const activeCount = state.teams.filter(t => t.status === 'active').length;
@@ -202,16 +220,50 @@ function formatTime(sec) {
 
 async function addTeam(e) {
     e.preventDefault();
-    const name = document.getElementById('newTeamName').value.trim();
-    if (!name) return false;
-    await api('add_team', { name });
-    document.getElementById('newTeamName').value = '';
-    loop();
+    const nameInput = document.getElementById('newTeamName');
+    const name = nameInput.value.trim();
+    const statusDiv = document.getElementById('addTeamStatus');
+    const btn = document.getElementById('addTeamBtn');
+    
+    if (!name) {
+        statusDiv.innerHTML = '<span style="color:#ef4444;">Team name cannot be empty</span>';
+        return false;
+    }
+    
+    btn.disabled = true;
+    statusDiv.innerHTML = '<span style="color:#3b82f6;">Adding team...</span>';
+    
+    try {
+        const result = await api('add_team', { name });
+        if (result.error) {
+            statusDiv.innerHTML = `<span style="color:#ef4444;">Error: ${escapeHtml(result.error)}</span>`;
+            btn.disabled = false;
+        } else if (result.ok) {
+            statusDiv.innerHTML = `<span style="color:#22c55e;">✓ Team added successfully!</span>`;
+            nameInput.value = '';
+            await new Promise(r => setTimeout(r, 800));
+            await loop();
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<span style="color:#ef4444;">Error: ${escapeHtml(error.message)}</span>`;
+        btn.disabled = false;
+    }
     return false;
 }
 async function eliminateTeam(id) { await api('eliminate', { team_id: id }); loop(); }
 async function reinstateTeam(id) { await api('reinstate', { team_id: id }); loop(); }
-async function startGame() { await api('start_game'); loop(); }
+async function startGame() { 
+    try {
+        const result = await api('start_game');
+        if (result.error) {
+            alert('Error: ' + result.error);
+        } else {
+            await loop();
+        }
+    } catch (e) {
+        alert('Failed to start game: ' + e.message);
+    }
+}
 async function selectQuestion(id) { await api('select_question', { question_id: id }); loop(); }
 async function revealQuestion() { await api('reveal_question'); loop(); }
 async function revealAnswer() { await api('reveal_answer'); loop(); }
@@ -219,7 +271,13 @@ async function judge(teamId, result) { await api('judge', { team_id: teamId, res
 async function startFinal() { await api('start_final'); loop(); }
 async function setWager(teamId) {
     const wager = document.getElementById('wager_' + teamId).value;
-    await api('set_wager', { team_id: teamId, wager });
+    const result = await api('set_wager', { team_id: teamId, wager });
+    if (!result.ok) alert(result.error || 'Unable to save wager.');
+    loop();
+}
+async function revealCipher() {
+    const result = await api('start_cipher');
+    if (!result.ok) alert(result.error || 'Unable to reveal the cipher.');
     loop();
 }
 async function revealFinalQuestion() { await api('reveal_final_question'); loop(); }

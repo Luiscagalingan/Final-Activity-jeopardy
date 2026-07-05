@@ -56,10 +56,11 @@ if ($state['phase'] === 'ctf' && $state['active_ctf_id']) {
     $elapsed = $state['ctf_start_time'] ? (time() - strtotime($state['ctf_start_time'])) : 0;
     $remaining = max(0, $ctf['duration_seconds'] - $elapsed);
     $payload['ctf'] = [
-        'title'     => $ctf['title'],
-        'prompt'    => $ctf['prompt'],
-        'hint'      => $isHost ? $ctf['hint'] : null,
-        'remaining' => $remaining,
+        'title'          => $ctf['title'],
+        'prompt'         => $state['ctf_prompt_visible'] ? $ctf['prompt'] : null,
+        'prompt_visible' => (bool)$state['ctf_prompt_visible'],
+        'hint'           => $isHost ? $ctf['hint'] : null,
+        'remaining'      => $remaining,
         'winner_team_id' => $state['ctf_winner_team_id'] ? (int)$state['ctf_winner_team_id'] : null,
     ];
 }

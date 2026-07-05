@@ -38,9 +38,22 @@ async function render() {
     const finalists = state.teams.filter(t => t.status === 'finalist' || t.status === 'winner');
     statusEl.textContent = state.ctf.winner_team_id
         ? 'A flag has already been captured. The game has ended.'
-        : 'Select your team and submit the flag as fast as you can.';
+        : (state.ctf.prompt_visible ? 'Select your team and submit the flag as fast as you can.' : 'Waiting for the host to reveal the cipher.');
 
     if (state.ctf.winner_team_id) { formEl.innerHTML = ''; return; }
+
+    if (!finalists.length) {
+        formEl.innerHTML = `<p class="muted">No eligible finalists are available to submit the flag right now.</p>`;
+        return;
+    }
+
+    if (!state.ctf.prompt_visible) {
+        formEl.innerHTML = `
+            <p><strong>${escapeHtml(state.ctf.title)}</strong></p>
+            <div class="ctf-prompt muted">The cipher will appear once the host reveals it.</div>
+        `;
+        return;
+    }
 
     formEl.innerHTML = `
         <p><strong>${escapeHtml(state.ctf.title)}</strong></p>

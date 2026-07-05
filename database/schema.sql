@@ -67,6 +67,7 @@ CREATE TABLE game_state (
     answer_visible TINYINT(1) NOT NULL DEFAULT 0,
     active_ctf_id INT NULL,
     ctf_start_time DATETIME NULL,
+    ctf_prompt_visible TINYINT(1) NOT NULL DEFAULT 0,
     ctf_winner_team_id INT NULL,
     winner_team_id INT NULL,
     message VARCHAR(255) NULL,

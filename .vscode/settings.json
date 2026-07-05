@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^php -r '\\$pdo=new PDO\\(\"mysql:host=localhost;dbname=web_feud_ctf;charset=utf8mb4\",\"root\",\"\" \\); \\$pdo->setAttribute\\(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION\\); foreach\\(\\$pdo->query\\(\"SHOW COLUMNS FROM game_state\"\\) as \\$row\\)\\{ echo \\$row\\[\"Field\"\\]\\.\":\"\\.\\$row\\[\"Type\"\\]\\.\"\\\\n\"; \\}'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

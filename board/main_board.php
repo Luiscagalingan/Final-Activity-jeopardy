@@ -88,7 +88,7 @@ function render(state) {
         html += `<div class="ctf-panel">
             <h2>CTF Resolution: ${escapeHtml(c.title)}</h2>
             <div class="timer">${formatTime(c.remaining)}</div>
-            <div class="ctf-prompt">${escapeHtml(c.prompt)}</div>
+            ${c.prompt_visible ? `<div class="ctf-prompt">${escapeHtml(c.prompt)}</div>` : `<div class="ctf-prompt muted">The cipher is hidden until the host reveals it.</div>`}
             <p class="muted">Finalists: submit your flag from the Team Submission page on your device.</p>
         </div>`;
         html += scoreboardHtml(state.teams.filter(t => t.status === 'finalist' || t.status === 'winner'));
