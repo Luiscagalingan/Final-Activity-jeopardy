@@ -21,6 +21,18 @@ host_require_login();
 
     <div class="container" id="app">Loading...</div>
 
+    <div id="confirmModal" style="display:none; position:fixed; inset:0; background:rgba(2,6,23,.75); align-items:center; justify-content:center; z-index:9999;">
+        <div style="background:linear-gradient(135deg,#1e293b,#0f172a); border:1px solid #334155; border-radius:16px; padding:24px; max-width:420px; width:90%; text-align:center; box-shadow:0 20px 50px rgba(0,0,0,.35);">
+            <div style="font-size:28px; margin-bottom:8px;">⚠️</div>
+            <h3 id="confirmTitle" style="margin-bottom:8px;">Confirm action</h3>
+            <p id="confirmMessage" class="muted" style="margin-bottom:18px;">Please confirm this action.</p>
+            <div style="display:flex; justify-content:center; gap:10px;">
+                <button class="btn btn-sm" onclick="closeConfirmModal(false)">Cancel</button>
+                <button class="btn-danger btn-sm" onclick="closeConfirmModal(true)">Continue</button>
+            </div>
+        </div>
+    </div>
+
 <script>
 async function api(action, data = {}) {
     const form = new FormData();
@@ -45,6 +57,22 @@ function escapeHtml(s) {
 
 let currentState = null;
 let teamDraftName = '';
+let pendingResetAction = null;
+
+function openConfirmModal(title, message, action) {
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMessage').textContent = message;
+    document.getElementById('confirmModal').style.display = 'flex';
+    pendingResetAction = action;
+}
+
+function closeConfirmModal(confirmed) {
+    document.getElementById('confirmModal').style.display = 'none';
+    if (confirmed && pendingResetAction) {
+        pendingResetAction();
+    }
+    pendingResetAction = null;
+}
 
 function teamListHtml(teams) {
     return teams.map(t => {
@@ -290,14 +318,16 @@ async function revealCipher() {
 async function revealFinalQuestion() { await api('reveal_final_question'); loop(); }
 async function gradeFinal(teamId, correct) { await api('grade_final', { team_id: teamId, correct: correct ? 1 : 0 }); loop(); }
 async function declareWinner(teamId) {
-    if (!confirm('Declare this team the winner?')) return;
-    await api('declare_winner', { team_id: teamId });
-    loop();
+    openConfirmModal('Declare winner', 'Declare this team the winner?', async () => {
+        await api('declare_winner', { team_id: teamId });
+        loop();
+    });
 }
 async function resetGame() {
-    if (!confirm('This resets ALL scores and progress. Continue?')) return;
-    await api('reset_game');
-    loop();
+    openConfirmModal('Reset entire game', 'This will clear all scores, teams, and progress for the current session.', async () => {
+        await api('reset_game');
+        loop();
+    });
 }
 
 async function loop() {
