@@ -115,10 +115,30 @@ function get_registered_team_names(): array {
     return array_map(static fn($row) => ['id' => (int)$row['id'], 'name' => $row['name']], $rows);
 }
 
+function player_logout(): void {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
+
+    $_SESSION = [];
+
+    if (ini_get('session.use_cookies')) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+    }
+
+    session_destroy();
+}
+
 function player_require_login(): void {
-    session_start();
-    if (empty($_SESSION['player_auth']) || empty($_SESSION['player_team_id'])) {
-        header('Location: player_login.php');
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
+
+    if (empty($_SESSION['player_auth']) || (empty($_SESSION['player_id']) && empty($_SESSION['player_team_id']))) {
+        $scriptDir = dirname($_SERVER['SCRIPT_NAME'] ?? '');
+        $loginPath = ($scriptDir && $scriptDir !== '/' ? $scriptDir : '') . '/player_login.php';
+        header('Location: ' . $loginPath);
         exit;
     }
 }

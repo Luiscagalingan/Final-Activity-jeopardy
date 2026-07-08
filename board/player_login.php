@@ -14,15 +14,18 @@ if (!empty($_POST['player_name'])) {
     $member = get_team_member_by_name($fullName);
 
     if ($member && !empty($member['team_id'])) {
+        session_regenerate_id(true);
         $_SESSION['player_auth'] = true;
+        $_SESSION['player_id'] = (int)$member['id'];
         $_SESSION['player_name'] = $member['full_name'];
         $_SESSION['player_team_id'] = (int)$member['team_id'];
         $_SESSION['player_team_name'] = $member['team_name'] ?? 'Unknown team';
+        $_SESSION['player_role'] = 'player';
         header('Location: main_board.php');
         exit;
     }
 
-    $notice = 'Your name was not found in the registered team list. Please enter your exact full name as listed in the database, or ask the host to add your team.';
+    $notice = 'Player name not found.';
     $noticeClass = 'error';
 }
 
@@ -44,7 +47,7 @@ $registeredTeams = get_registered_team_names();
     <div class="container" style="max-width:700px; margin-top:60px;">
         <div class="card">
             <h1>Player Login</h1>
-            <p class="muted">Enter your full name exactly as it is stored in the database. If your name is registered to a team, you will be redirected to the main board.</p>
+            <p class="muted">Enter your player name exactly as it is stored in the database. If your name is registered to a team, you will be redirected to the main board.</p>
             <p class="muted" style="margin-top:8px;"><strong>File location:</strong> this login page is saved in the board folder as player_login.php.</p>
 
             <?php if ($notice !== ''): ?>
@@ -58,7 +61,7 @@ $registeredTeams = get_registered_team_names();
             <?php endif; ?>
 
             <form method="post">
-                <label for="player_name">Full name</label>
+                <label for="player_name">Player name</label>
                 <input type="text" id="player_name" name="player_name" placeholder="e.g. Abalos, Kathleen Anne R" required style="width:100%; margin-top:8px; margin-bottom:12px;">
                 <button class="btn btn-primary" type="submit">Continue to Main Board</button>
             </form>

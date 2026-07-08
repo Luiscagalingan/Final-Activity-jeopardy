@@ -13,7 +13,7 @@
         <div class="card">
             <h2>Main Board</h2>
             <p class="muted">Players enter their name here first, then they can access the board.</p>
-            <a class="btn btn-primary" href="board/player_login.php?force=1" target="_blank">Open Player Login</a>
+            <a class="btn btn-primary" href="board/player_login.php?force=1" target="_blank">Open Main Dashboard</a>
         </div>
 
         <div class="card">
