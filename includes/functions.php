@@ -95,6 +95,34 @@ function get_final_wagers(): array {
     return $pdo->query('SELECT * FROM final_wagers')->fetchAll();
 }
 
+function get_team_member_by_name(string $fullName): ?array {
+    $pdo = get_db();
+    $stmt = $pdo->prepare(
+        'SELECT tm.id, tm.full_name, tm.team_id, t.name AS team_name
+         FROM team_members tm
+         LEFT JOIN teams t ON t.id = tm.team_id
+         WHERE LOWER(TRIM(tm.full_name)) = LOWER(TRIM(?))
+         LIMIT 1'
+    );
+    $stmt->execute([$fullName]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+function get_registered_team_names(): array {
+    $pdo = get_db();
+    $rows = $pdo->query('SELECT id, name FROM teams ORDER BY display_order, id')->fetchAll();
+    return array_map(static fn($row) => ['id' => (int)$row['id'], 'name' => $row['name']], $rows);
+}
+
+function player_require_login(): void {
+    session_start();
+    if (empty($_SESSION['player_auth']) || empty($_SESSION['player_team_id'])) {
+        header('Location: player_login.php');
+        exit;
+    }
+}
+
 function host_require_login(): void {
     session_start();
     if (empty($_SESSION['host_auth'])) {

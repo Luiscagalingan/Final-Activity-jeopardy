@@ -12,8 +12,8 @@
 
         <div class="card">
             <h2>Main Board</h2>
-            <p class="muted">Project this screen for players and the audience.</p>
-            <a class="btn btn-primary" href="board/main_board.php" target="_blank">Open Main Board</a>
+            <p class="muted">Players enter their name here first, then they can access the board.</p>
+            <a class="btn btn-primary" href="board/player_login.php?force=1" target="_blank">Open Player Login</a>
         </div>
 
         <div class="card">

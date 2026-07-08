@@ -44,6 +44,7 @@ function escapeHtml(s) {
 }
 
 let currentState = null;
+let teamDraftName = '';
 
 function teamListHtml(teams) {
     return teams.map(t => {
@@ -100,9 +101,10 @@ function render(state) {
 
     if (state.phase === 'lobby') {
         html += `<div class="card">
-            <h2>1. Register teams</h2>
+            <h2>1. Add teams for the game</h2>
+            <p class="muted">Only the host can add teams here. Players will log in by their full name and be matched to their team automatically.</p>
             <form onsubmit="return addTeam(event)">
-                <input type="text" id="newTeamName" placeholder="Team name" required>
+                <input type="text" id="newTeamName" placeholder="Team name" required value="${escapeHtml(teamDraftName)}" oninput="teamDraftName = this.value">
                 <button class="btn-primary" type="submit" id="addTeamBtn">Add team</button>
             </form>
             <div id="addTeamStatus" style="margin-top:10px;"></div>
@@ -198,6 +200,7 @@ function render(state) {
 
     html += `<div class="card"><h2>Game controls</h2>`;
     if (state.phase === 'lobby') {
+        html += `<p class="muted">The main board will show “Waiting for the host to start the game...” until you press the button below.</p>`;
         html += `<button class="btn-primary" ${state.teams.length < 3 ? 'disabled' : ''} onclick="startGame()">Start elimination round</button>`;
     }
     if (state.phase === 'elimination') {
@@ -240,8 +243,12 @@ async function addTeam(e) {
             btn.disabled = false;
         } else if (result.ok) {
             statusDiv.innerHTML = `<span style="color:#22c55e;">✓ Team added successfully!</span>`;
-            nameInput.value = '';
-            await new Promise(r => setTimeout(r, 800));
+            teamDraftName = '';
+            if (nameInput) {
+                nameInput.value = '';
+                nameInput.focus();
+            }
+            await new Promise(r => setTimeout(r, 700));
             await loop();
         }
     } catch (error) {
@@ -294,6 +301,10 @@ async function resetGame() {
 }
 
 async function loop() {
+    const currentInput = document.getElementById('newTeamName');
+    if (currentInput && currentInput.value) {
+        teamDraftName = currentInput.value;
+    }
     const state = await fetchState();
     if (state.current_question) state._questionText = state.current_question.question;
     render(state);

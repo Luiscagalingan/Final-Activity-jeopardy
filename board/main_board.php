@@ -1,3 +1,10 @@
+<?php
+require_once __DIR__ . '/../includes/functions.php';
+player_require_login();
+session_start();
+$playerName = $_SESSION['player_name'] ?? 'Player';
+$teamName = $_SESSION['player_team_name'] ?? 'Unknown team';
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,6 +17,7 @@
         <span class="phase-pill" id="phasePill">Loading...</span>
         <h1>Web Feud: Information Security Edition</h1>
         <p class="muted" id="messageLine"></p>
+        <p class="muted">Logged in as <strong><?php echo htmlspecialchars($playerName); ?></strong> · Team: <strong><?php echo htmlspecialchars($teamName); ?></strong></p>
     </div>
 
     <div class="container" id="app"></div>
