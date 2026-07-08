@@ -13,7 +13,7 @@ host_require_login();
     <div class="topbar">
         <div><strong>Web Feud Host Dashboard</strong> <span class="phase-pill" id="phasePill">Loading...</span></div>
         <div>
-            <a href="../board/main_board.php" target="_blank" class="btn btn-sm">Open Main Board</a>
+            <a href="../board/player_login.php" target="_blank" class="btn btn-sm">Open Player Login</a>
             <a href="../team/submit.php" target="_blank" class="btn btn-sm">Open Team Submission</a>
             <a href="logout.php" class="logout">Log out</a>
         </div>

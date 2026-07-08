@@ -1,7 +1,12 @@
 <?php
 require_once __DIR__ . '/../includes/functions.php';
 session_start();
-player_require_login();
+
+if (empty($_SESSION['player_auth']) || empty($_SESSION['player_name']) || empty($_SESSION['player_team_id'])) {
+    header('Location: player_login.php');
+    exit;
+}
+
 $playerName = $_SESSION['player_name'] ?? 'Player';
 $teamName = $_SESSION['player_team_name'] ?? 'Unknown team';
 ?>
