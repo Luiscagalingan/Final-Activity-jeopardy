@@ -17,6 +17,17 @@ CREATE TABLE teams (
 );
 
 -- ---------------------------------------------------------
+-- Player names mapped to a team for the player login flow
+-- ---------------------------------------------------------
+CREATE TABLE team_members (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    full_name VARCHAR(150) NOT NULL,
+    team_id INT NOT NULL,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_team_member_name (full_name)
+);
+
+-- ---------------------------------------------------------
 -- Categories for the Elimination round board
 -- ---------------------------------------------------------
 CREATE TABLE categories (
@@ -101,6 +112,80 @@ CREATE TABLE flag_submissions (
 -- ===========================================================
 -- SEED DATA
 -- ===========================================================
+
+INSERT INTO teams (name, display_order) VALUES
+('ABCFN', 1),
+('Bacon', 2),
+('RAAHR', 3),
+('Cen is Sored', 4),
+('MATCHALAP', 5),
+('SCUBRAZIL', 6);
+
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Abalos, Kathleen Anne R', id FROM teams WHERE name = 'ABCFN';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Bumacod, Najil J', id FROM teams WHERE name = 'ABCFN';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Cainglet, Jan Alain S', id FROM teams WHERE name = 'ABCFN';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Faustino, Justine Angelo B', id FROM teams WHERE name = 'ABCFN';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Napay, Dhone Bert T', id FROM teams WHERE name = 'ABCFN';
+
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Arcillas, Aldrin Shane', id FROM teams WHERE name = 'Bacon';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Balang, Gabriel', id FROM teams WHERE name = 'Bacon';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Cantorna, Rhona', id FROM teams WHERE name = 'Bacon';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Neri, Ryan', id FROM teams WHERE name = 'Bacon';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Oliveros, Marc Ryane', id FROM teams WHERE name = 'Bacon';
+
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Benitez, Richelle Dorothy', id FROM teams WHERE name = 'RAAHR';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Loterte, Anthony', id FROM teams WHERE name = 'RAAHR';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Nañez, Hanzel Gwen', id FROM teams WHERE name = 'RAAHR';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Navarro, Rex', id FROM teams WHERE name = 'RAAHR';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Pascua, Avril Lavigne', id FROM teams WHERE name = 'RAAHR';
+
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Batara, Stephen Kyle B', id FROM teams WHERE name = 'Cen is Sored';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Bayot, Ryza L', id FROM teams WHERE name = 'Cen is Sored';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Rosell, Jamie', id FROM teams WHERE name = 'Cen is Sored';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Santos, Milan Franco L', id FROM teams WHERE name = 'Cen is Sored';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Suarez, Alyssa Mae G', id FROM teams WHERE name = 'Cen is Sored';
+
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Mejia, Charles Adrian', id FROM teams WHERE name = 'MATCHALAP';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Menciano, Cecille', id FROM teams WHERE name = 'MATCHALAP';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Tolento, Jayvelyn', id FROM teams WHERE name = 'MATCHALAP';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Velasquez, Leo', id FROM teams WHERE name = 'MATCHALAP';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Viterbo, Archie', id FROM teams WHERE name = 'MATCHALAP';
+
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Legaspi, Ron Michael', id FROM teams WHERE name = 'SCUBRAZIL';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Lola, Kelly Rowland', id FROM teams WHERE name = 'SCUBRAZIL';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Manlogon, Prince Emir', id FROM teams WHERE name = 'SCUBRAZIL';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Martinez, John Edrian', id FROM teams WHERE name = 'SCUBRAZIL';
+INSERT INTO team_members (full_name, team_id)
+SELECT 'Junio, Carl AJ', id FROM teams WHERE name = 'SCUBRAZIL';
 
 INSERT INTO categories (name, round_type, display_order) VALUES
 ('Cybersecurity Fundamentals', 'elimination', 1),

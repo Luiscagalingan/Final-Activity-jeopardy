@@ -13,13 +13,25 @@ host_require_login();
     <div class="topbar">
         <div><strong>Web Feud Host Dashboard</strong> <span class="phase-pill" id="phasePill">Loading...</span></div>
         <div>
-            <a href="../board/main_board.php" target="_blank" class="btn btn-sm">Open Main Board</a>
+            <a href="../board/player_login.php" target="_blank" class="btn btn-sm">Open Player Login</a>
             <a href="../team/submit.php" target="_blank" class="btn btn-sm">Open Team Submission</a>
             <a href="logout.php" class="logout">Log out</a>
         </div>
     </div>
 
     <div class="container" id="app">Loading...</div>
+
+    <div id="confirmModal" style="display:none; position:fixed; inset:0; background:rgba(2,6,23,.75); align-items:center; justify-content:center; z-index:9999;">
+        <div style="background:linear-gradient(135deg,#1e293b,#0f172a); border:1px solid #334155; border-radius:16px; padding:24px; max-width:420px; width:90%; text-align:center; box-shadow:0 20px 50px rgba(0,0,0,.35);">
+            <div style="font-size:28px; margin-bottom:8px;">⚠️</div>
+            <h3 id="confirmTitle" style="margin-bottom:8px;">Confirm action</h3>
+            <p id="confirmMessage" class="muted" style="margin-bottom:18px;">Please confirm this action.</p>
+            <div style="display:flex; justify-content:center; gap:10px;">
+                <button class="btn btn-sm" onclick="closeConfirmModal(false)">Cancel</button>
+                <button class="btn-danger btn-sm" onclick="closeConfirmModal(true)">Continue</button>
+            </div>
+        </div>
+    </div>
 
 <script>
 async function api(action, data = {}) {
@@ -44,6 +56,23 @@ function escapeHtml(s) {
 }
 
 let currentState = null;
+let teamDraftName = '';
+let pendingResetAction = null;
+
+function openConfirmModal(title, message, action) {
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMessage').textContent = message;
+    document.getElementById('confirmModal').style.display = 'flex';
+    pendingResetAction = action;
+}
+
+function closeConfirmModal(confirmed) {
+    document.getElementById('confirmModal').style.display = 'none';
+    if (confirmed && pendingResetAction) {
+        pendingResetAction();
+    }
+    pendingResetAction = null;
+}
 
 function teamListHtml(teams) {
     return teams.map(t => {
@@ -100,9 +129,10 @@ function render(state) {
 
     if (state.phase === 'lobby') {
         html += `<div class="card">
-            <h2>1. Register teams</h2>
+            <h2>1. Add teams for the game</h2>
+            <p class="muted">Only the host can add teams here. Players will log in by their full name and be matched to their team automatically.</p>
             <form onsubmit="return addTeam(event)">
-                <input type="text" id="newTeamName" placeholder="Team name" required>
+                <input type="text" id="newTeamName" placeholder="Team name" required value="${escapeHtml(teamDraftName)}" oninput="teamDraftName = this.value">
                 <button class="btn-primary" type="submit" id="addTeamBtn">Add team</button>
             </form>
             <div id="addTeamStatus" style="margin-top:10px;"></div>
@@ -198,6 +228,7 @@ function render(state) {
 
     html += `<div class="card"><h2>Game controls</h2>`;
     if (state.phase === 'lobby') {
+        html += `<p class="muted">The main board will show “Waiting for the host to start the game...” until you press the button below.</p>`;
         html += `<button class="btn-primary" ${state.teams.length < 3 ? 'disabled' : ''} onclick="startGame()">Start elimination round</button>`;
     }
     if (state.phase === 'elimination') {
@@ -240,8 +271,12 @@ async function addTeam(e) {
             btn.disabled = false;
         } else if (result.ok) {
             statusDiv.innerHTML = `<span style="color:#22c55e;">✓ Team added successfully!</span>`;
-            nameInput.value = '';
-            await new Promise(r => setTimeout(r, 800));
+            teamDraftName = '';
+            if (nameInput) {
+                nameInput.value = '';
+                nameInput.focus();
+            }
+            await new Promise(r => setTimeout(r, 700));
             await loop();
         }
     } catch (error) {
@@ -283,17 +318,23 @@ async function revealCipher() {
 async function revealFinalQuestion() { await api('reveal_final_question'); loop(); }
 async function gradeFinal(teamId, correct) { await api('grade_final', { team_id: teamId, correct: correct ? 1 : 0 }); loop(); }
 async function declareWinner(teamId) {
-    if (!confirm('Declare this team the winner?')) return;
-    await api('declare_winner', { team_id: teamId });
-    loop();
+    openConfirmModal('Declare winner', 'Declare this team the winner?', async () => {
+        await api('declare_winner', { team_id: teamId });
+        loop();
+    });
 }
 async function resetGame() {
-    if (!confirm('This resets ALL scores and progress. Continue?')) return;
-    await api('reset_game');
-    loop();
+    openConfirmModal('Reset entire game', 'This will clear all scores, teams, and progress for the current session.', async () => {
+        await api('reset_game');
+        loop();
+    });
 }
 
 async function loop() {
+    const currentInput = document.getElementById('newTeamName');
+    if (currentInput && currentInput.value) {
+        teamDraftName = currentInput.value;
+    }
     const state = await fetchState();
     if (state.current_question) state._questionText = state.current_question.question;
     render(state);

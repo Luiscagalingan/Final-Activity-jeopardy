@@ -1,3 +1,15 @@
+<?php
+require_once __DIR__ . '/../includes/functions.php';
+session_start();
+
+if (empty($_SESSION['player_auth']) || empty($_SESSION['player_name']) || empty($_SESSION['player_team_id'])) {
+    header('Location: player_login.php');
+    exit;
+}
+
+$playerName = $_SESSION['player_name'] ?? 'Player';
+$teamName = $_SESSION['player_team_name'] ?? 'Unknown team';
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,6 +22,7 @@
         <span class="phase-pill" id="phasePill">Loading...</span>
         <h1>Web Feud: Information Security Edition</h1>
         <p class="muted" id="messageLine"></p>
+        <p class="muted">Logged in as <strong><?php echo htmlspecialchars($playerName); ?></strong> · Team: <strong><?php echo htmlspecialchars($teamName); ?></strong><a href="logout.php" style="margin-left:12px; color:#fff; text-decoration:underline;">Logout</a></p>
     </div>
 
     <div class="container" id="app"></div>
