@@ -1,4 +1,3 @@
-@ -1,306 +1,347 @@
 <?php
 require_once __DIR__ . '/../includes/functions.php';
 host_require_login();
@@ -7,33 +6,409 @@ host_require_login();
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Host Dashboard - Web Feud</title>
 <link rel="stylesheet" href="../assets/css/style.css">
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        min-height: 100vh;
+    }
+
+    body {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        color: #e2e8f0;
+        background: #0c1f5c !important;
+        background-image:
+            radial-gradient(circle at 50% 0%, #1a3a8f 0%, #0c1f5c 35%, #060f33 70%, #02071a 100%) !important;
+        background-attachment: fixed;
+        position: relative;
+    }
+
+    body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: inherit;
+        z-index: 0;
+        pointer-events: none;
+    }
+
+    .topbar, .container {
+        position: relative;
+        z-index: 5;
+    }
+
+    .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 28px;
+        background: #0d1b4c;
+        border-bottom: 1px solid rgba(255, 215, 0, 0.4);
+    }
+
+    .topbar strong {
+        color: #ffd700;
+        font-size: 1.05rem;
+        letter-spacing: 0.3px;
+    }
+
+    .phase-pill {
+        display: inline-block;
+        margin-left: 10px;
+        padding: 4px 12px;
+        border-radius: 999px;
+        background: rgba(255, 215, 0, 0.15);
+        border: 1px solid rgba(255, 215, 0, 0.5);
+        color: #ffd700;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+    }
+
+    .topbar a {
+        color: #b8c4e8;
+        text-decoration: none;
+        font-size: 0.9rem;
+        margin-left: 18px;
+        transition: filter 0.15s ease, color 0.15s ease, transform 0.05s ease;
+    }
+
+    .topbar a.btn {
+        background: #ffd700;
+        color: #1a1200;
+        padding: 9px 14px;
+    }
+
+    .topbar a.btn:hover {
+        filter: brightness(1.1);
+    }
+
+    .topbar a.btn:active {
+        transform: translateY(1px);
+    }
+
+    .topbar a.logout {
+        color: #fca5a5;
+        padding: 6px 10px;
+        border-radius: 8px;
+    }
+
+    .topbar a.logout:hover {
+        background: rgba(231, 76, 60, 0.15);
+        color: #ff8a8a;
+    }
+
+    .container {
+        max-width: 1300px;
+        margin: 0 auto;
+        padding: 28px;
+    }
+
+    .grid-2 {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 24px;
+    }
+
+    .card {
+        background: #0d1b4c;
+        border: 1px solid rgba(255, 215, 0, 0.4);
+        border-radius: 14px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+        padding: 24px;
+        margin-bottom: 24px;
+    }
+
+    .card h2 {
+        color: #ffd700;
+        font-size: 1.3rem;
+        margin: 0 0 14px;
+    }
+
+    .card h3 {
+        color: #ffd700;
+        font-size: 1.05rem;
+        margin: 18px 0 10px;
+    }
+
+    .muted {
+        color: #8a94b8;
+    }
+
+    .card p {
+        line-height: 1.5;
+    }
+
+    input[type="text"],
+    input[type="number"] {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 10px;
+        border: 2px solid #2c4491;
+        background: #0a1440;
+        color: #f1f5ff;
+        font-size: 1rem;
+        outline: none;
+        margin-bottom: 10px;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus {
+        border-color: #ffd700;
+        box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.25);
+    }
+
+    input::placeholder {
+        color: #6b7ac0;
+    }
+
+    .btn,
+    .btn-primary,
+    .btn-warning,
+    .btn-danger,
+    .btn-success,
+    .btn-sm {
+        display: inline-block;
+        padding: 11px 16px;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 0.92rem;
+        letter-spacing: 0.3px;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        transition: filter 0.15s ease, transform 0.05s ease;
+    }
+
+    .btn:hover,
+    .btn-primary:hover,
+    .btn-warning:hover,
+    .btn-danger:hover,
+    .btn-success:hover,
+    .btn-sm:hover {
+        filter: brightness(1.1);
+    }
+
+    .btn:active,
+    .btn-primary:active,
+    .btn-warning:active,
+    .btn-danger:active,
+    .btn-success:active,
+    .btn-sm:active {
+        transform: translateY(1px);
+    }
+
+    .btn,
+    .btn-sm {
+        background: #2c4491;
+        color: #f1f5ff;
+    }
+
+    .btn-primary {
+        background: #ffd700;
+        color: #1a1200;
+    }
+
+    .btn-warning {
+        background: #f5a623;
+        color: #1a1200;
+    }
+
+    .btn-danger {
+        background: #e74c3c;
+        color: #fff;
+    }
+
+    .btn-success {
+        background: #2ecc71;
+        color: #06210f;
+    }
+
+    .btn-sm {
+        padding: 7px 12px;
+        font-size: 0.82rem;
+    }
+
+    .btn:disabled,
+    .btn-primary:disabled,
+    .btn-sm:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        filter: none;
+    }
+
+    /* Team list */
+    .team-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #0a1440;
+        border: 1px solid #22306b;
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 8px;
+    }
+
+    .team-name {
+        color: #f1f5ff;
+        font-weight: 700;
+        margin-right: 10px;
+    }
+
+    .team-score {
+        color: #ffd700;
+        font-weight: 700;
+    }
+
+    .status-tag {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        vertical-align: middle;
+    }
+
+    .status-active {
+        background: rgba(46, 204, 113, 0.15);
+        color: #2ecc71;
+        border: 1px solid rgba(46, 204, 113, 0.4);
+    }
+
+    .status-eliminated {
+        background: rgba(231, 76, 60, 0.15);
+        color: #e74c3c;
+        border: 1px solid rgba(231, 76, 60, 0.4);
+    }
+
+    .status-finalist {
+        background: rgba(245, 166, 35, 0.15);
+        color: #f5a623;
+        border: 1px solid rgba(245, 166, 35, 0.4);
+    }
+
+    .status-winner {
+        background: rgba(255, 215, 0, 0.18);
+        color: #ffd700;
+        border: 1px solid rgba(255, 215, 0, 0.5);
+    }
+
+    /* Board grid */
+    .board-grid {
+        display: grid;
+        gap: 10px;
+    }
+
+    .board-col-header {
+        background: #0a1440;
+        border: 1px solid rgba(255, 215, 0, 0.35);
+        border-radius: 8px;
+        color: #ffd700;
+        font-weight: 700;
+        text-align: center;
+        padding: 12px 6px;
+        font-size: 0.9rem;
+        min-height: 58px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1.25;
+    }
+
+    .board-cell {
+        background: #12235e;
+        border: 1px solid #2c4491;
+        border-radius: 8px;
+        text-align: center;
+        padding: 20px 6px;
+        color: #ffd700;
+        font-weight: 800;
+        font-size: 1.05rem;
+        cursor: pointer;
+        transition: background 0.15s ease, transform 0.05s ease;
+    }
+
+    .board-cell:hover {
+        background: #1a3a8f;
+        transform: translateY(-2px);
+    }
+
+    .board-cell.used {
+        background: transparent;
+        border: 1px dashed #2c4491;
+        cursor: default;
+        color: transparent;
+    }
+
+    .board-cell.used:hover {
+        transform: none;
+    }
+
+    /* Wagers */
+    .wager-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: #0a1440;
+        border: 1px solid #22306b;
+        border-radius: 10px;
+        padding: 10px 14px;
+        margin-bottom: 8px;
+    }
+
+    .wager-row .team-name {
+        flex: 1;
+    }
+
+    .wager-row input[type="number"] {
+        width: 110px;
+        margin-bottom: 0;
+    }
+
+    /* CTF / timer */
+    .timer {
+        font-size: 2.4rem;
+        font-weight: 800;
+        color: #ffd700;
+        text-align: center;
+        margin: 6px 0 16px;
+        letter-spacing: 1px;
+    }
+
+    .ctf-prompt {
+        background: #0a1440;
+        border: 1px solid rgba(255, 215, 0, 0.3);
+        border-radius: 10px;
+        padding: 14px;
+        margin: 12px 0;
+        font-family: 'Courier New', monospace;
+        color: #ffd700;
+        word-break: break-word;
+    }
+</style>
 </head>
 <body>
     <div class="topbar">
         <div><strong>Web Feud Host Dashboard</strong> <span class="phase-pill" id="phasePill">Loading...</span></div>
         <div>
             <a href="../board/main_board.php" target="_blank" class="btn btn-sm">Open Main Board</a>
-            <a href="../board/player_login.php" target="_blank" class="btn btn-sm">Open Player Login</a>
             <a href="../team/submit.php" target="_blank" class="btn btn-sm">Open Team Submission</a>
             <a href="logout.php" class="logout">Log out</a>
         </div>
     </div>
 
     <div class="container" id="app">Loading...</div>
-
-    <div id="confirmModal" style="display:none; position:fixed; inset:0; background:rgba(2,6,23,.75); align-items:center; justify-content:center; z-index:9999;">
-        <div style="background:linear-gradient(135deg,#1e293b,#0f172a); border:1px solid #334155; border-radius:16px; padding:24px; max-width:420px; width:90%; text-align:center; box-shadow:0 20px 50px rgba(0,0,0,.35);">
-            <div style="font-size:28px; margin-bottom:8px;">⚠️</div>
-            <h3 id="confirmTitle" style="margin-bottom:8px;">Confirm action</h3>
-            <p id="confirmMessage" class="muted" style="margin-bottom:18px;">Please confirm this action.</p>
-            <div style="display:flex; justify-content:center; gap:10px;">
-                <button class="btn btn-sm" onclick="closeConfirmModal(false)">Cancel</button>
-                <button class="btn-danger btn-sm" onclick="closeConfirmModal(true)">Continue</button>
-            </div>
-        </div>
-    </div>
 
 <script>
 async function api(action, data = {}) {
@@ -58,23 +433,6 @@ function escapeHtml(s) {
 }
 
 let currentState = null;
-let teamDraftName = '';
-let pendingResetAction = null;
-
-function openConfirmModal(title, message, action) {
-    document.getElementById('confirmTitle').textContent = title;
-    document.getElementById('confirmMessage').textContent = message;
-    document.getElementById('confirmModal').style.display = 'flex';
-    pendingResetAction = action;
-}
-
-function closeConfirmModal(confirmed) {
-    document.getElementById('confirmModal').style.display = 'none';
-    if (confirmed && pendingResetAction) {
-        pendingResetAction();
-    }
-    pendingResetAction = null;
-}
 
 function teamListHtml(teams) {
     return teams.map(t => {
@@ -107,13 +465,13 @@ function judgeButtonsHtml(teams) {
 
 function boardGridHtml(categories) {
     const rows = Math.max(...categories.map(c => c.questions.length));
-    let html = '<div class="board-grid">';
+    let html = `<div class="board-grid" style="grid-template-columns: repeat(${categories.length}, 1fr);">`;
     categories.forEach(c => html += `<div class="board-col-header">${escapeHtml(c.name)}</div>`);
     for (let r = 0; r < rows; r++) {
         categories.forEach(c => {
             const q = c.questions[r];
             if (!q) { html += '<div></div>'; return; }
-            html += `<div class="board-cell ${q.is_used ? 'used' : ''}" onclick="${q.is_used ? '' : `selectQuestion(${q.id})`}">${q.is_used ? '' : '$' + q.points}</div>`;
+            html += `<div class="board-cell ${q.is_used ? 'used' : ''}" onclick="${q.is_used ? '' : `selectQuestion(${q.id})`}">${q.is_used ? '' : '₱' + q.points}</div>`;
         });
     }
     html += '</div>';
@@ -132,11 +490,8 @@ function render(state) {
     if (state.phase === 'lobby') {
         html += `<div class="card">
             <h2>1. Register teams</h2>
-            <h2>1. Add teams for the game</h2>
-            <p class="muted">Only the host can add teams here. Players will log in by their full name and be matched to their team automatically.</p>
             <form onsubmit="return addTeam(event)">
                 <input type="text" id="newTeamName" placeholder="Team name" required>
-                <input type="text" id="newTeamName" placeholder="Team name" required value="${escapeHtml(teamDraftName)}" oninput="teamDraftName = this.value">
                 <button class="btn-primary" type="submit" id="addTeamBtn">Add team</button>
             </form>
             <div id="addTeamStatus" style="margin-top:10px;"></div>
@@ -147,7 +502,7 @@ function render(state) {
         if (state.current_question) {
             const q = state.current_question;
             html += `<div class="card">
-                <h2>Question for $${q.points}</h2>
+                <h2>Question for ₱${q.points}</h2>
                 ${!q.question_visible ? `<button class="btn-primary" onclick="revealQuestion()">Reveal question on board</button>` : `
                     <p><strong>Q:</strong> ${escapeHtml(state._questionText || '')}</p>
                     ${!q.answer_visible ? `<button class="btn-warning" onclick="revealAnswer()">Reveal answer</button>` : `<p class="muted">Answer: ${escapeHtml(q.answer || '')}</p>`}
@@ -232,7 +587,6 @@ function render(state) {
 
     html += `<div class="card"><h2>Game controls</h2>`;
     if (state.phase === 'lobby') {
-        html += `<p class="muted">The main board will show “Waiting for the host to start the game...” until you press the button below.</p>`;
         html += `<button class="btn-primary" ${state.teams.length < 3 ? 'disabled' : ''} onclick="startGame()">Start elimination round</button>`;
     }
     if (state.phase === 'elimination') {
@@ -277,12 +631,6 @@ async function addTeam(e) {
             statusDiv.innerHTML = `<span style="color:#22c55e;">✓ Team added successfully!</span>`;
             nameInput.value = '';
             await new Promise(r => setTimeout(r, 800));
-            teamDraftName = '';
-            if (nameInput) {
-                nameInput.value = '';
-                nameInput.focus();
-            }
-            await new Promise(r => setTimeout(r, 700));
             await loop();
         }
     } catch (error) {
@@ -327,32 +675,20 @@ async function declareWinner(teamId) {
     if (!confirm('Declare this team the winner?')) return;
     await api('declare_winner', { team_id: teamId });
     loop();
-    openConfirmModal('Declare winner', 'Declare this team the winner?', async () => {
-        await api('declare_winner', { team_id: teamId });
-        loop();
-    });
 }
 async function resetGame() {
     if (!confirm('This resets ALL scores and progress. Continue?')) return;
     await api('reset_game');
     loop();
-    openConfirmModal('Reset entire game', 'This will clear all scores, teams, and progress for the current session.', async () => {
-        await api('reset_game');
-        loop();
-    });
 }
 
 async function loop() {
-    const currentInput = document.getElementById('newTeamName');
-    if (currentInput && currentInput.value) {
-        teamDraftName = currentInput.value;
-    }
     const state = await fetchState();
     if (state.current_question) state._questionText = state.current_question.question;
     render(state);
 }
 loop();
-setInterval(loop, 1500);
+setInterval(loop, 100000);
 </script>
 </body>
 </html>
