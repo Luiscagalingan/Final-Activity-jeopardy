@@ -1,4 +1,3 @@
-@ -0,0 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/functions.php';
 
