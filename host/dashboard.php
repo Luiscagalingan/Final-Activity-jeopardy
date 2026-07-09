@@ -688,7 +688,7 @@ async function loop() {
     render(state);
 }
 loop();
-setInterval(loop, 100000);
+setInterval(loop, 1500);
 </script>
 </body>
 </html>
