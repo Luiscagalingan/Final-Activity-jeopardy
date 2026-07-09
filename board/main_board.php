@@ -1,3 +1,4 @@
+@ -1,3 +1,15 @@
 <?php
 require_once __DIR__ . '/../includes/functions.php';
 session_start();
@@ -13,12 +14,7 @@ $teamName = $_SESSION['player_team_name'] ?? 'Unknown team';
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Web Feud - Main Board</title>
-<link rel="stylesheet" href="../assets/css/style.css">
-</head>
-<body class="board-page">
-    <div class="board-header">
+@ -10,6 +22,7 @@
         <span class="phase-pill" id="phasePill">Loading...</span>
         <h1>Web Feud: Information Security Edition</h1>
         <p class="muted" id="messageLine"></p>
@@ -26,6 +22,7 @@ $teamName = $_SESSION['player_team_name'] ?? 'Unknown team';
     </div>
 
     <div class="container" id="app"></div>
+
 
 <script>
 const CATEGORY_COLORS = ['','',''];

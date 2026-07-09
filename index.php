@@ -1,3 +1,4 @@
+@ -1,39 +1,39 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -17,6 +18,8 @@
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; text-align: left;">
             <div class="card" style="margin-bottom: 0; display: flex; flex-direction: column;">
                 <h2>Main Board</h2>
+                <p class="muted" style="flex-grow: 1;">Project this screen for players and the audience.</p>
+                <a class="btn btn-primary" href="board/main_board.php" target="_blank" style="text-align: center; width: 100%;">Open Main Board</a>
                 <p class="muted" style="flex-grow: 1;">Players enter their name here first, then they can access the board.</p>
                 <a class="btn btn-primary" href="board/player_login.php" target="_blank" style="text-align: center; width: 100%;">Open Main Dashboard</a>
             </div>

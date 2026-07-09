@@ -1,3 +1,4 @@
+@ -1,306 +1,347 @@
 <?php
 require_once __DIR__ . '/../includes/functions.php';
 host_require_login();
@@ -13,6 +14,7 @@ host_require_login();
     <div class="topbar">
         <div><strong>Web Feud Host Dashboard</strong> <span class="phase-pill" id="phasePill">Loading...</span></div>
         <div>
+            <a href="../board/main_board.php" target="_blank" class="btn btn-sm">Open Main Board</a>
             <a href="../board/player_login.php" target="_blank" class="btn btn-sm">Open Player Login</a>
             <a href="../team/submit.php" target="_blank" class="btn btn-sm">Open Team Submission</a>
             <a href="logout.php" class="logout">Log out</a>
@@ -129,9 +131,11 @@ function render(state) {
 
     if (state.phase === 'lobby') {
         html += `<div class="card">
+            <h2>1. Register teams</h2>
             <h2>1. Add teams for the game</h2>
             <p class="muted">Only the host can add teams here. Players will log in by their full name and be matched to their team automatically.</p>
             <form onsubmit="return addTeam(event)">
+                <input type="text" id="newTeamName" placeholder="Team name" required>
                 <input type="text" id="newTeamName" placeholder="Team name" required value="${escapeHtml(teamDraftName)}" oninput="teamDraftName = this.value">
                 <button class="btn-primary" type="submit" id="addTeamBtn">Add team</button>
             </form>
@@ -271,6 +275,8 @@ async function addTeam(e) {
             btn.disabled = false;
         } else if (result.ok) {
             statusDiv.innerHTML = `<span style="color:#22c55e;">✓ Team added successfully!</span>`;
+            nameInput.value = '';
+            await new Promise(r => setTimeout(r, 800));
             teamDraftName = '';
             if (nameInput) {
                 nameInput.value = '';
@@ -318,12 +324,18 @@ async function revealCipher() {
 async function revealFinalQuestion() { await api('reveal_final_question'); loop(); }
 async function gradeFinal(teamId, correct) { await api('grade_final', { team_id: teamId, correct: correct ? 1 : 0 }); loop(); }
 async function declareWinner(teamId) {
+    if (!confirm('Declare this team the winner?')) return;
+    await api('declare_winner', { team_id: teamId });
+    loop();
     openConfirmModal('Declare winner', 'Declare this team the winner?', async () => {
         await api('declare_winner', { team_id: teamId });
         loop();
     });
 }
 async function resetGame() {
+    if (!confirm('This resets ALL scores and progress. Continue?')) return;
+    await api('reset_game');
+    loop();
     openConfirmModal('Reset entire game', 'This will clear all scores, teams, and progress for the current session.', async () => {
         await api('reset_game');
         loop();
