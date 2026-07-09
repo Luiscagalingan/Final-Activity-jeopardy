@@ -118,8 +118,24 @@ input[type=text], input[type=number] {
 
 /* ---------- Main board (public display) ---------- */
 .board-page { text-align: center; }
-.board-header { padding: 20px; }
+.board-header {
+    padding: 20px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+}
+.board-header-content { flex: 1; text-align: center; }
 .board-header h1 { font-size: 32px; letter-spacing: .02em; }
+.team-badge {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-weight: 700;
+    color: var(--accent);
+    white-space: nowrap;
+}
 .question-panel {
     background: var(--panel); border: 2px solid var(--accent); border-radius: 16px;
     padding: 60px 40px; margin: 20px auto; max-width: 900px; min-height: 180px;
@@ -150,6 +166,20 @@ input[type=text], input[type=number] {
 
 .winner-banner {
     font-size: 42px; font-weight: 800; color: var(--amber); padding: 60px 20px;
+}
+
+.main-board-center-image {
+    display: flex; justify-content: center; align-items: center;
+    margin: 24px 0;
+}
+
+.main-board-center-image img {
+    max-width: 420px;
+    width: 100%;
+    height: auto;
+    border-radius: 16px;
+    border: 2px solid var(--border);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
 }
 
 .wager-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }

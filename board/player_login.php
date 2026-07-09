@@ -1,23 +1,68 @@
 <?php
+require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/functions.php';
+
 session_start();
 
 $error = '';
+$selectedTeamId = '';
+$playerName = '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (($_POST['pin'] ?? '') === HOST_PIN) {
-        $_SESSION['host_auth'] = true;
-        header('Location: dashboard.php');
-        exit;
+    $selectedTeamId = trim((string)($_POST['team_id'] ?? ''));
+    $playerName = trim((string)($_POST['player_name'] ?? ''));
+
+    if ($selectedTeamId === '') {
+        $error = 'Please select a team.';
+    } elseif ($playerName === '') {
+        $error = 'Please enter your name.';
+    } else {
+        $pdo = get_db();
+        $stmt = $pdo->prepare('SELECT id, name FROM teams WHERE id = ? LIMIT 1');
+        $stmt->execute([(int)$selectedTeamId]);
+        $team = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$team) {
+            $error = 'Selected team was not found.';
+        } else {
+            $searchName = trim($playerName);
+            $memberStmt = $pdo->prepare(
+                'SELECT id, full_name, team_id FROM team_members WHERE team_id = ? AND (
+                    LOWER(TRIM(full_name)) = LOWER(TRIM(?))
+                    OR LOWER(TRIM(SUBSTRING_INDEX(full_name, " ", -1))) = LOWER(TRIM(?))
+                    OR LOWER(TRIM(full_name)) LIKE LOWER(TRIM(?))
+                ) LIMIT 1'
+            );
+            $memberStmt->execute([(int)$team['id'], $searchName, $searchName, '%' . $searchName . '%']);
+            $member = $memberStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$member) {
+                $error = 'Wrong group or name.';
+            } else {
+                $_SESSION['player_auth'] = true;
+                $_SESSION['player_id'] = (int)$member['id'];
+                $_SESSION['player_name'] = $member['full_name'];
+                $_SESSION['player_team_id'] = (int)$member['team_id'];
+                $_SESSION['player_team_name'] = $team['name'];
+                $_SESSION['player_role'] = 'player';
+
+                session_regenerate_id(true);
+                header('Location: main_board.php');
+                exit;
+            }
+        }
     }
-    $error = 'Incorrect PIN.';
 }
+
+$pdo = get_db();
+$teams = $pdo->query('SELECT id, name FROM teams ORDER BY display_order, id')->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Host Login - Web Feud</title>
+<title>Player Login - Web Feud</title>
 <link rel="stylesheet" href="../assets/css/style.css">
 <style>
     * {
@@ -68,6 +113,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
     }
 
+    .login-card h1 {
+        margin: 4px 0 4px;
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        color: #ffd700;
+    }
+
     .login-card .subtitle-logo {
         display: block;
         width: 120px;
@@ -77,25 +130,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         margin: 0 auto 14px;
     }
 
-    .login-card h1 {
-        margin: 4px 0 4px;
-        font-size: 2rem;
-        font-weight: 800;
-        letter-spacing: 0.5px;
-        color: #ffd700;
-    }
-
     .login-card p.muted {
         color: #b8c4e8;
         font-size: 0.95rem;
         line-height: 1.5;
         margin: 0 0 26px;
-    }
-
-    .login-card p.muted.small {
-        font-size: 0.78rem;
-        margin: 16px 0 0;
-        color: #6b7ac0;
     }
 
     .login-card .error {
@@ -106,7 +145,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         padding: 10px 14px;
         font-size: 0.9rem;
         font-weight: 600;
-        margin: 12px 0;
     }
 
     .login-card label {
@@ -121,8 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     .login-card select,
-    .login-card input[type="text"],
-    .login-card input[type="password"] {
+    .login-card input[type="text"] {
         width: 100%;
         padding: 13px 14px;
         border-radius: 10px;
@@ -144,13 +181,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     .login-card select:focus,
-    .login-card input[type="text"]:focus,
-    .login-card input[type="password"]:focus {
+    .login-card input[type="text"]:focus {
         border-color: #ffd700;
         box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.25);
     }
 
-    .login-card input::placeholder {
+    .login-card input[type="text"]::placeholder {
         color: #6b7ac0;
     }
 
@@ -177,14 +213,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body class="login-page">
     <div class="login-card">
         <img src="../pictures/web feud.png" alt="Web Feud" class="subtitle-logo">
-        <h1>Host Login</h1>
-        <p class="muted">Enter the host PIN to control the game.</p>
-        <?php if ($error): ?><p class="error"><?= htmlspecialchars($error) ?></p><?php endif; ?>
+        <h1>Player Login</h1>
+        <p class="muted">Choose your team and enter your name to join the board.</p>
+
+        <?php if ($error !== ''): ?>
+            <p class="error" style="margin: 12px 0;"><?php echo htmlspecialchars($error); ?></p>
+        <?php endif; ?>
+
         <form method="post">
-            <input type="password" name="pin" placeholder="Host PIN" autofocus required>
-            <button type="submit">Log in</button>
+            <label for="team_id">Team</label>
+            <select id="team_id" name="team_id" required>
+                <option value="">Select your team</option>
+                <?php foreach ($teams as $team): ?>
+                    <option value="<?php echo (int)$team['id']; ?>" <?php echo ((string)$selectedTeamId === (string)$team['id']) ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars($team['name'] ?? ''); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+
+            <label for="player_name">Name</label>
+            <input type="text" id="player_name" name="player_name" value="<?php echo htmlspecialchars($playerName); ?>" placeholder="Enter your full name or surname" required>
+
+            <button type="submit">Continue to Main Board</button>
         </form>
-        <p class="muted small">Default PIN is set in includes/functions.php</p>
     </div>
 </body>
 </html>
