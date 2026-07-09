@@ -8,7 +8,9 @@ $error = '';
 $selectedTeamId = '';
 $playerName = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+$requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+if ($requestMethod === 'POST') {
     $selectedTeamId = trim((string)($_POST['team_id'] ?? ''));
     $playerName = trim((string)($_POST['player_name'] ?? ''));
 
@@ -25,15 +27,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$team) {
             $error = 'Selected team was not found.';
         } else {
-            $_SESSION['player_auth'] = true;
-            $_SESSION['player_name'] = $playerName;
-            $_SESSION['player_team_id'] = (int)$team['id'];
-            $_SESSION['player_team_name'] = $team['name'];
-            $_SESSION['player_role'] = 'player';
+            $memberStmt = $pdo->prepare(
+                'SELECT id, full_name, team_id FROM team_members WHERE team_id = ? AND LOWER(TRIM(full_name)) = LOWER(TRIM(?)) LIMIT 1'
+            );
+            $memberStmt->execute([(int)$team['id'], $playerName]);
+            $member = $memberStmt->fetch();
 
-            session_regenerate_id(true);
-            header('Location: main_board.php');
-            exit;
+            if (!$member) {
+                $error = 'Wrong group or name.';
+            } else {
+                $_SESSION['player_auth'] = true;
+                $_SESSION['player_id'] = (int)$member['id'];
+                $_SESSION['player_name'] = $member['full_name'];
+                $_SESSION['player_team_id'] = (int)$member['team_id'];
+                $_SESSION['player_team_name'] = $team['name'];
+                $_SESSION['player_role'] = 'player';
+
+                session_regenerate_id(true);
+                header('Location: main_board.php');
+                exit;
+            }
         }
     }
 }
@@ -59,11 +72,11 @@ $teams = $pdo->query('SELECT id, name FROM teams ORDER BY display_order, id')->f
 
         <form method="post">
             <label for="team_id" style="display:block; text-align:left; margin-top:8px;">Team</label>
-            <select id="team_id" name="team_id" required style="width:100%; padding:10px; margin:8px 0 12px; border-radius:8px; border:1px solid var(--border); background:#0f172a; color:#e2e8f0;">
+            <select id="team_id" name="team_id" required style="width:100%; padding:10px; margin:8px 0 12px; border-radius:8px; border:1px solid #334155; background:#0f172a; color:#e2e8f0;">
                 <option value="">Select your team</option>
                 <?php foreach ($teams as $team): ?>
                     <option value="<?php echo (int)$team['id']; ?>" <?php echo ((string)$selectedTeamId === (string)$team['id']) ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars($team['name']); ?>
+                        <?php echo htmlspecialchars($team['name'] ?? ''); ?>
                     </option>
                 <?php endforeach; ?>
             </select>
