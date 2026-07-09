@@ -6,7 +6,21 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (($_POST['pin'] ?? '') === HOST_PIN) {
         $_SESSION['host_auth'] = true;
-        header('Location: dashboard.php');
+        ?>
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+        <meta charset="UTF-8">
+        <title>Logging in...</title>
+        </head>
+        <body>
+        <script>
+            localStorage.setItem('webFeudHostAuthChanged', String(Date.now()));
+            window.location.replace('dashboard.php');
+        </script>
+        </body>
+        </html>
+        <?php
         exit;
     }
     $error = 'Incorrect PIN.';

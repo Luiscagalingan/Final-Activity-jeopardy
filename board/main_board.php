@@ -48,14 +48,24 @@ if (empty($_SESSION['player_auth']) || empty($_SESSION['player_name']) || empty(
     }
 
     .board-header {
-        display: flex;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
         align-items: center;
-        justify-content: space-between;
         padding: 20px 32px;
         background: #0d1b4c;
         border-bottom: 1px solid rgba(255, 215, 0, 0.4);
-        flex-wrap: wrap;
         gap: 12px;
+    }
+
+    .board-header .team-badge {
+        justify-self: start;
+    }
+
+    .header-right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        justify-self: end;
     }
 
     .team-badge {
@@ -70,28 +80,66 @@ if (empty($_SESSION['player_auth']) || empty($_SESSION['player_name']) || empty(
     }
 
     .player-name-sep {
-        opacity: 0.5;
-        margin: 0 2px;
+        opacity: 0.9;
+        margin: 0 6px;
+        font-size: 1.3rem;
+        font-weight: 900;
+        color: #ffd700;
+        vertical-align: middle;
     }
 
     .logout-link {
-        color: #fca5a5;
+        color: #ffd700;
         text-decoration: none;
         font-size: 0.85rem;
-        padding: 8px 14px;
+        font-weight: 700;
+        padding: 8px 16px;
         border-radius: 999px;
-        transition: background 0.15s ease, color 0.15s ease;
+        border: 1px solid rgba(255, 215, 0, 0.5);
+        background: rgba(255, 215, 0, 0.1);
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
         white-space: nowrap;
     }
 
     .logout-link:hover {
-        background: rgba(231, 76, 60, 0.15);
-        color: #ff8a8a;
+        background: rgba(255, 215, 0, 0.22);
+        border-color: #ffd700;
+        color: #fff4b8;
+    }
+
+    .ctf-submit-link {
+        display: none;
+        color: #0d1b4c;
+        text-decoration: none;
+        font-size: 0.85rem;
+        font-weight: 800;
+        padding: 8px 16px;
+        border-radius: 999px;
+        border: 1px solid #ffd700;
+        background: #ffd700;
+        white-space: nowrap;
+        box-shadow: 0 0 12px rgba(255, 215, 0, 0.6);
+        animation: ctf-pulse 1.6s ease-in-out infinite;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .ctf-submit-link:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 0 18px rgba(255, 215, 0, 0.85);
+    }
+
+    .ctf-submit-link.show {
+        display: inline-block;
+    }
+
+    @keyframes ctf-pulse {
+        0%, 100% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
+        50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.9); }
     }
 
     .board-header-content {
         text-align: center;
-        flex: 1;
+        justify-self: center;
     }
 
     .board-header-content h1 {
@@ -100,6 +148,7 @@ if (empty($_SESSION['player_auth']) || empty($_SESSION['player_name']) || empty(
         font-size: 1.6rem;
         margin: 4px 0;
         letter-spacing: 0.3px;
+        white-space: nowrap;
     }
 
     .phase-pill {
@@ -178,6 +227,72 @@ if (empty($_SESSION['player_auth']) || empty($_SESSION['player_name']) || empty(
         font-size: 1.3rem;
     }
 
+    .raise-panel {
+        background: #0d1b4c;
+        border: 1px solid rgba(255, 215, 0, 0.4);
+        border-radius: 14px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+        padding: 18px 22px;
+        text-align: center;
+        margin: -8px 0 24px;
+        display: grid;
+        grid-template-columns: minmax(170px, 1fr) minmax(180px, 260px) minmax(170px, 1fr);
+        gap: 16px;
+        align-items: center;
+    }
+
+    .raise-panel h2 {
+        color: #ffd700;
+        font-size: 1.1rem;
+        margin: 0;
+        text-align: left;
+    }
+
+    .raised-team-name {
+        min-height: 46px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #f1f5ff;
+        font-size: 1.25rem;
+        font-weight: 800;
+        line-height: 1.2;
+        word-break: break-word;
+    }
+
+    .raise-btn {
+        width: 100%;
+        min-height: 54px;
+        border: 1px solid #ffd700;
+        border-radius: 12px;
+        background: #ffd700;
+        color: #0d1b4c;
+        font-size: 1rem;
+        font-weight: 900;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+        box-shadow: 0 0 14px rgba(255, 215, 0, 0.45);
+    }
+
+    .raise-btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.75);
+    }
+
+    .raise-btn:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .raise-status {
+        color: #8a94b8;
+        font-size: 0.85rem;
+        min-height: 20px;
+        text-align: right;
+    }
+
     /* Board grid (elimination round) */
     .board-grid {
         display: grid;
@@ -221,7 +336,7 @@ if (empty($_SESSION['player_auth']) || empty($_SESSION['player_name']) || empty(
     /* Scoreboard */
     .scoreboard {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        grid-template-columns: repeat(6, 1fr);
         gap: 14px;
     }
 
@@ -248,7 +363,7 @@ if (empty($_SESSION['player_auth']) || empty($_SESSION['player_name']) || empty(
 
     .status-tag {
         display: inline-block;
-        margin-left: 6px;
+        margin: 2px 0 8px;
         padding: 2px 9px;
         border-radius: 999px;
         font-size: 0.62rem;
@@ -321,6 +436,24 @@ if (empty($_SESSION['player_auth']) || empty($_SESSION['player_name']) || empty(
         color: #8a94b8;
     }
 
+    .eliminated-banner {
+        display: none;
+        background: rgba(231, 76, 60, 0.12);
+        border: 1px solid rgba(231, 76, 60, 0.45);
+        color: #ff8a8a;
+        border-radius: 12px;
+        padding: 14px 20px;
+        text-align: center;
+        font-weight: 700;
+        font-size: 0.95rem;
+        margin-bottom: 20px;
+        letter-spacing: 0.2px;
+    }
+
+    .eliminated-banner.show {
+        display: block;
+    }
+
     /* Winner banner */
     .winner-banner {
         background: linear-gradient(160deg, #12235e 0%, #0d1b4c 100%);
@@ -334,6 +467,29 @@ if (empty($_SESSION['player_auth']) || empty($_SESSION['player_name']) || empty(
         color: #ffd700;
         margin-bottom: 24px;
     }
+
+    @media (max-width: 700px) {
+        .board-header {
+            grid-template-columns: 1fr;
+            justify-items: center;
+            text-align: center;
+        }
+
+        .board-header .team-badge,
+        .header-right {
+            justify-self: center;
+        }
+
+        .raise-panel {
+            grid-template-columns: 1fr;
+            margin-top: 0;
+        }
+
+        .raise-panel h2,
+        .raise-status {
+            text-align: center;
+        }
+    }
 </style>
 </head>
 <body class="board-page">
@@ -344,13 +500,24 @@ if (empty($_SESSION['player_auth']) || empty($_SESSION['player_name']) || empty(
             <h1>Web Feud: Information Security Edition</h1>
             <p class="muted" id="messageLine"></p>
         </div>
-        <a href="logout.php" class="logout-link">Log out</a>
+        <div class="header-right">
+            <a href="team_submission.php" id="ctfSubmitBtn" class="ctf-submit-link">Submit CTF</a>
+            <a href="logout.php" class="logout-link">Log out</a>
+        </div>
     </div>
 
-    <div class="container" id="app"></div>
+    <div class="container">
+        <div class="eliminated-banner" id="eliminatedBanner">📺 Your team has been eliminated — sit back and enjoy the rest of the show!</div>
+        <div id="app"></div>
+    </div>
 
 <script>
+const myTeamId = <?php echo json_encode($_SESSION['player_team_id']); ?>;
 const CATEGORY_COLORS = ['','',''];
+let raisePending = false;
+let raiseStatusText = '';
+let raiseStatusQuestionKey = null;
+let lastHostAuthSignal = localStorage.getItem('webFeudHostAuthChanged') || '';
 
 async function fetchState() {
     try {
@@ -364,9 +531,8 @@ async function fetchState() {
 function scoreboardHtml(teams) {
     return '<div class="scoreboard">' + teams.map(t => `
         <div class="score-card">
-            <div class="name">${escapeHtml(t.name)}
-                <span class="status-tag status-${t.status}">${t.status}</span>
-            </div>
+            <div class="name">${escapeHtml(t.name)}</div>
+            <div><span class="status-tag status-${t.status}">${t.status}</span></div>
             <div class="pts">${t.score}</div>
         </div>
     `).join('') + '</div>';
@@ -378,8 +544,24 @@ function escapeHtml(s) {
 
 function render(state) {
     if (!state) return;
+    const activeQuestionKey = state.current_question ? String(state.current_question.id) : null;
+    if (activeQuestionKey !== raiseStatusQuestionKey) {
+        raiseStatusQuestionKey = activeQuestionKey;
+        raiseStatusText = '';
+    }
+
     document.getElementById('phasePill').textContent = state.phase.replace('_', ' ');
     document.getElementById('messageLine').textContent = state.message || '';
+
+    const myTeam = state.teams.find(t => t.id === myTeamId);
+    const isEliminated = !!myTeam && myTeam.status === 'eliminated';
+    document.getElementById('eliminatedBanner').classList.toggle('show', isEliminated && state.phase !== 'finished');
+
+    // Only the two teams still in it (finalist, or winner after capturing
+    // the flag) should ever see the Submit CTF button — an eliminated
+    // team has nothing to submit and is just watching from here on.
+    const canSubmitCtf = !!myTeam && (myTeam.status === 'finalist' || myTeam.status === 'winner');
+    document.getElementById('ctfSubmitBtn').classList.toggle('show', state.phase === 'ctf' && canSubmitCtf);
 
     let html = '';
 
@@ -399,6 +581,7 @@ function render(state) {
         } else {
             html += boardGridHtml(state.board);
         }
+        html += raisePanelHtml(state, myTeam);
         html += scoreboardHtml(state.teams);
     }
 
@@ -422,7 +605,7 @@ function render(state) {
     if (state.phase === 'ctf') {
         const c = state.ctf;
         html += `<div class="ctf-panel">
-            <h2>CTF Resolution: ${escapeHtml(c.title)}</h2>
+            <h2>CTF Resolution: ${escapeHtml(c.title)}${c.round ? ` <span class="muted" style="font-size:1rem;">(Round ${c.round})</span>` : ''}</h2>
             <div class="timer">${formatTime(c.remaining)}</div>
             ${c.prompt_visible ? `<div class="ctf-prompt">${escapeHtml(c.prompt)}</div>` : `<div class="ctf-prompt muted">The cipher is hidden until the host reveals it.</div>`}
             <p class="muted">Finalists: submit your flag from the Team Submission page on your device.</p>
@@ -436,6 +619,63 @@ function render(state) {
     }
 
     document.getElementById('app').innerHTML = html;
+}
+
+function raisePanelHtml(state, myTeam) {
+    const firstTeamName = state.raised_hand_team_name || '';
+    const raisedTeams = Array.isArray(state.raised_teams) ? state.raised_teams.map(Number) : [];
+    const alreadyRaised = raisedTeams.includes(Number(myTeamId));
+    const questionVisible = !!state.current_question && state.current_question.question_visible;
+    const canRaise = !!myTeam
+        && myTeam.status === 'active'
+        && !state.raised_hand_team_id
+        && !alreadyRaised
+        && !raisePending
+        && !questionVisible;
+    const buttonText = raisePending ? 'Raising...' : alreadyRaised ? 'Raised' : state.raised_hand_team_id ? 'Locked' : 'Raise';
+    const status = firstTeamName
+        ? `${escapeHtml(firstTeamName)} raised first`
+        : (raiseStatusText || 'First team to click appears here.');
+
+    return `<div class="raise-panel">
+        <h2>First Raise</h2>
+        <div class="raised-team-name">${firstTeamName ? escapeHtml(firstTeamName) : '<span class="muted">Waiting...</span>'}</div>
+        <button type="button" class="raise-btn" onclick="raiseHand()" ${canRaise ? '' : 'disabled'}>${buttonText}</button>
+        <div class="raise-status">${status}</div>
+    </div>`;
+}
+
+async function raiseHand() {
+    if (raisePending) return;
+
+    const state = await fetchState();
+    if (!state || state.phase !== 'elimination' || (state.current_question && state.current_question.question_visible)) {
+        raiseStatusText = 'No active raise window yet.';
+        loop();
+        return;
+    }
+
+    raisePending = true;
+    raiseStatusText = 'Sending raise...';
+    render(state);
+
+    try {
+        const res = await fetch('../api/raise_hand.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ question_key: 'elimination' })
+        });
+        const data = await res.json();
+        raiseStatusText = data.success
+            ? 'You raised first!'
+            : (data.first_team_name ? `${data.first_team_name} raised first.` : (data.error || 'Raise was not recorded.'));
+    } catch (e) {
+        raiseStatusText = 'Could not raise. Please try again.';
+    } finally {
+        raisePending = false;
+        loop();
+    }
 }
 
 function formatTime(sec) {
@@ -464,6 +704,35 @@ async function loop() {
     const state = await fetchState();
     render(state);
 }
+
+function hostAuthSignalChanged() {
+    const current = localStorage.getItem('webFeudHostAuthChanged') || '';
+    const changed = current && current !== lastHostAuthSignal;
+    if (changed) {
+        lastHostAuthSignal = current;
+    }
+    return changed;
+}
+
+window.addEventListener('storage', (event) => {
+    if (event.key === 'webFeudHostAuthChanged') {
+        lastHostAuthSignal = event.newValue || '';
+        loop();
+    }
+});
+
+window.addEventListener('focus', () => {
+    if (hostAuthSignalChanged()) {
+        loop();
+    }
+});
+
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && hostAuthSignalChanged()) {
+        loop();
+    }
+});
+
 loop();
 setInterval(loop, 1500);
 </script>

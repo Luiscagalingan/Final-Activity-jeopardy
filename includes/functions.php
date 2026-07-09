@@ -86,13 +86,76 @@ function get_ctf_challenge(int $id): ?array {
 
 function get_unused_ctf_challenge(): ?array {
     $pdo = get_db();
-    $row = $pdo->query('SELECT * FROM ctf_challenges WHERE is_used = 0 ORDER BY id LIMIT 1')->fetch();
+    $row = $pdo->query('SELECT * FROM ctf_challenges WHERE is_used = 0 ORDER BY RAND() LIMIT 1')->fetch();
     return $row ?: null;
+}
+
+// How many CTF challenges have been played so far this game, used to show
+// a "Round N" indicator during a sudden-death tiebreaker sequence.
+function get_used_ctf_challenge_count(): int {
+    $pdo = get_db();
+    return (int)$pdo->query('SELECT COUNT(*) c FROM ctf_challenges WHERE is_used = 1')->fetch()['c'];
+}
+
+function get_ctf_competitors(): array {
+    $pdo = get_db();
+    $finalists = $pdo->query(
+        "SELECT t.*
+         FROM teams t
+         JOIN final_wagers fw ON fw.team_id = t.id
+         ORDER BY t.display_order, t.id
+         LIMIT 2"
+    )->fetchAll();
+
+    if (count($finalists) >= 2) {
+        return $finalists;
+    }
+
+    return $pdo->query(
+        "SELECT * FROM teams WHERE status = 'finalist' ORDER BY display_order, id LIMIT 2"
+    )->fetchAll();
 }
 
 function get_final_wagers(): array {
     $pdo = get_db();
     return $pdo->query('SELECT * FROM final_wagers')->fetchAll();
+}
+
+// All flag attempts for a given CTF challenge, newest first, joined with
+// the submitting team's name. Host-only data — never expose this to the
+// public board view, since it reveals in-progress guesses.
+function get_flag_submissions(int $ctfId): array {
+    $pdo = get_db();
+    $stmt = $pdo->prepare(
+        'SELECT fs.*, t.name AS team_name
+         FROM flag_submissions fs
+         JOIN teams t ON t.id = fs.team_id
+         WHERE fs.ctf_id = ?
+         ORDER BY fs.id DESC'
+    );
+    $stmt->execute([$ctfId]);
+    return $stmt->fetchAll();
+}
+
+function get_latest_flag_submissions_by_team(int $ctfId): array {
+    $pdo = get_db();
+    $stmt = $pdo->prepare(
+        'SELECT fs.*
+         FROM flag_submissions fs
+         JOIN (
+             SELECT team_id, MAX(id) AS max_id
+             FROM flag_submissions
+             WHERE ctf_id = ?
+             GROUP BY team_id
+         ) latest ON latest.max_id = fs.id'
+    );
+    $stmt->execute([$ctfId]);
+
+    $submissions = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $submissions[(int)$row['team_id']] = $row;
+    }
+    return $submissions;
 }
 
 function get_team_member_by_name(string $fullName): ?array {

@@ -9,6 +9,7 @@ host_require_login();
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Host Dashboard - Web Feud</title>
 <link rel="stylesheet" href="../assets/css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <style>
     * {
         box-sizing: border-box;
@@ -73,18 +74,45 @@ host_require_login();
         text-transform: uppercase;
     }
 
+    .topbar-right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
     .topbar a {
         color: #b8c4e8;
         text-decoration: none;
         font-size: 0.9rem;
-        margin-left: 18px;
         transition: filter 0.15s ease, color 0.15s ease, transform 0.05s ease;
+    }
+
+    /* Unified sizing for all three topbar buttons: "Open Main Board",
+       "Open Team Submission", and "Log out" all render at the same
+       fixed height and minimum width regardless of label length. */
+    .topbar a.btn,
+    .topbar .ctf-submit-link,
+    .topbar a.logout-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 38px;
+        min-width: 170px;
+        padding: 0 16px;
+        border-radius: 999px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        white-space: nowrap;
+        box-sizing: border-box;
+        text-align: center;
+        font-family: inherit;
+        cursor: pointer;
     }
 
     .topbar a.btn {
         background: #ffd700;
         color: #1a1200;
-        padding: 9px 14px;
+        border: 1px solid #ffd700;
     }
 
     .topbar a.btn:hover {
@@ -95,15 +123,48 @@ host_require_login();
         transform: translateY(1px);
     }
 
-    .topbar a.logout {
-        color: #fca5a5;
-        padding: 6px 10px;
-        border-radius: 8px;
+    /* Yellow pill button that jumps the host down to the "Flag submissions"
+       panel. Pulses while the CTF phase is live; sits as a plain pill
+       otherwise. It's a <button>, not a link - there's nothing to open in
+       a new tab, it just scrolls the current page. */
+    .topbar .ctf-submit-link {
+        color: #000000;
+        border: 1px solid #ffd700;
+        background: #ffd700;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
 
-    .topbar a.logout:hover {
-        background: rgba(231, 76, 60, 0.15);
-        color: #ff8a8a;
+    .ctf-submit-link:hover {
+        transform: translateY(-1px);
+    }
+
+    .ctf-submit-link.pulse {
+        box-shadow: 0 0 12px rgba(255, 215, 0, 0.6);
+        animation: ctf-pulse 1.6s ease-in-out infinite;
+    }
+
+    .ctf-submit-link.pulse:hover {
+        box-shadow: 0 0 18px rgba(255, 215, 0, 0.85);
+    }
+
+    @keyframes ctf-pulse {
+        0%, 100% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
+        50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.9); }
+    }
+
+    /* Same pill used for "Log out" on the main board */
+    .topbar a.logout-link {
+        color: #ffd700;
+        text-decoration: none;
+        border: 1px solid rgba(255, 215, 0, 0.5);
+        background: rgba(255, 215, 0, 0.1);
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .logout-link:hover {
+        background: rgba(255, 215, 0, 0.22);
+        border-color: #ffd700;
+        color: #fff4b8;
     }
 
     .container {
@@ -256,6 +317,7 @@ host_require_login();
         border-radius: 10px;
         padding: 12px 14px;
         margin-bottom: 8px;
+        gap: 12px;
     }
 
     .team-name {
@@ -355,6 +417,45 @@ host_require_login();
         transform: none;
     }
 
+    .raise-host-panel {
+        background: #0a1440;
+        border: 2px solid #ffd700;
+        border-radius: 12px;
+        padding: 18px 20px;
+        margin-top: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        box-shadow: 0 0 18px rgba(255, 215, 0, 0.22);
+    }
+
+    .raise-host-label {
+        color: #8a94b8;
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+    }
+
+    .raise-host-team {
+        color: #ffd700;
+        font-size: 1.8rem;
+        font-weight: 900;
+        text-align: right;
+        word-break: break-word;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .raise-host-team.empty {
+        color: #6b7ac0;
+        font-size: 1.2rem;
+        font-weight: 800;
+        text-transform: none;
+        letter-spacing: 0;
+    }
+
     /* Wagers */
     .wager-row {
         display: flex;
@@ -396,22 +497,98 @@ host_require_login();
         color: #ffd700;
         word-break: break-word;
     }
+
+    /* Flag submissions list (host-only) */
+    .submission-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        background: #0a1440;
+        border: 1px solid #22306b;
+        border-radius: 10px;
+        padding: 10px 14px;
+        margin-bottom: 8px;
+        flex-wrap: wrap;
+    }
+
+    .submission-row .submitted-flag {
+        font-family: 'Courier New', monospace;
+        color: #b8c4e8;
+        font-size: 0.9rem;
+        word-break: break-all;
+        flex: 1 1 auto;
+        text-align: right;
+    }
+
+    .submission-empty {
+        color: #6b7ac0;
+        font-size: 0.9rem;
+        font-style: italic;
+    }
+
+    /* Brief highlight when "View Flag Submissions" scrolls the host here */
+    .submissions-flash {
+        animation: submissions-flash-anim 1.2s ease;
+        border-radius: 6px;
+    }
+
+    @keyframes submissions-flash-anim {
+        0%   { background: rgba(255, 215, 0, 0.35); }
+        100% { background: transparent; }
+    }
+
+    .swal2-popup.webfeud-swal-popup {
+        border-radius: 18px !important;
+        border: 1px solid rgba(255, 215, 0, 0.4);
+        box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+    }
+
+    .swal2-title.webfeud-swal-title {
+        color: #ffd700;
+    }
+
+    .swal2-html-container.webfeud-swal-text {
+        color: #e2e8f0;
+    }
+
+    .swal2-confirm.webfeud-swal-confirm,
+    .swal2-cancel.webfeud-swal-cancel {
+        border-radius: 12px !important;
+        font-weight: 800;
+        padding: 10px 22px;
+    }
 </style>
 </head>
 <body>
     <div class="topbar">
         <div><strong>Web Feud Host Dashboard</strong> <span class="phase-pill" id="phasePill">Loading...</span></div>
-        <div>
-            <a href="../board/main_board.php" target="_blank" class="btn btn-sm">Open Main Board</a>
-            <a href="../team/submit.php" target="_blank" class="btn btn-sm">Open Team Submission</a>
-            <a href="logout.php" class="logout">Log out</a>
+        <div class="topbar-right">
+            <a href="../board/main_board.php" target="_blank" class="btn">Open Main Board</a>
+            <button type="button" id="ctfSubmitBtn" class="ctf-submit-link" onclick="scrollToSubmissions()">View Flag Submissions</button>
+            <a href="logout.php" class="logout-link">Log out</a>
         </div>
     </div>
 
     <div class="container" id="app">Loading...</div>
 
 <script>
-async function api(action, data = {}) {
+let lastHostAuthSignal = localStorage.getItem('webFeudHostAuthChanged') || '';
+
+function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function hostAuthSignalChanged() {
+    const current = localStorage.getItem('webFeudHostAuthChanged') || '';
+    const changed = current && current !== lastHostAuthSignal;
+    if (changed) {
+        lastHostAuthSignal = current;
+    }
+    return changed;
+}
+
+async function api(action, data = {}, retriedAfterAuth = false) {
     const form = new FormData();
     form.append('action', action);
     for (const k in data) form.append(k, data[k]);
@@ -420,11 +597,18 @@ async function api(action, data = {}) {
         body: form,
         credentials: 'same-origin'
     });
-    return res.json();
+    const payload = await res.json();
+
+    if (res.status === 401 && !retriedAfterAuth && hostAuthSignalChanged()) {
+        await wait(150);
+        return api(action, data, true);
+    }
+
+    return payload;
 }
 
 async function fetchState() {
-    const res = await fetch('../api/state.php?view=host');
+    const res = await fetch('../api/state.php?view=host', { credentials: 'same-origin' });
     return res.json();
 }
 
@@ -433,6 +617,30 @@ function escapeHtml(s) {
 }
 
 let currentState = null;
+
+window.addEventListener('storage', (event) => {
+    if (event.key === 'webFeudHostAuthChanged') {
+        lastHostAuthSignal = event.newValue || '';
+        Swal.close();
+        loop();
+    }
+});
+
+window.addEventListener('focus', () => {
+    if (hostAuthSignalChanged()) {
+        Swal.close();
+    }
+    loop();
+});
+
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        if (hostAuthSignalChanged()) {
+            Swal.close();
+        }
+        loop();
+    }
+});
 
 function teamListHtml(teams) {
     return teams.map(t => {
@@ -478,9 +686,39 @@ function boardGridHtml(categories) {
     return html;
 }
 
+function raisedHandHtml(state) {
+    const firstTeamName = state.raised_hand_team_name || '';
+    return `<div class="raise-host-panel">
+        <div>
+            <div class="raise-host-label">First raise</div>
+            <div class="muted">Visible to host during the elimination round.</div>
+        </div>
+        <div class="raise-host-team ${firstTeamName ? '' : 'empty'}">${firstTeamName ? escapeHtml(firstTeamName) : 'Waiting...'}</div>
+    </div>`;
+}
+
+// Renders the list of flag attempts for the active CTF challenge, newest
+// first. Shows exactly what each team typed so the host can see both the
+// verdict and the raw submission, e.g. for judging near-miss typos.
+function submissionsHtml(submissions) {
+    if (!submissions || !submissions.length) {
+        return `<p class="submission-empty">No flag submissions yet.</p>`;
+    }
+    return submissions.map(s => `
+        <div class="submission-row">
+            <div>
+                <span class="team-name">${escapeHtml(s.team_name)}</span>
+                <span class="status-tag ${s.is_correct ? 'status-active' : 'status-eliminated'}">${s.is_correct ? 'Correct' : 'Wrong'}</span>
+            </div>
+            <div class="submitted-flag">${escapeHtml(s.flag)}</div>
+        </div>
+    `).join('');
+}
+
 function render(state) {
     currentState = state;
     document.getElementById('phasePill').textContent = state.phase.replace('_', ' ');
+    document.getElementById('ctfSubmitBtn').classList.toggle('pulse', state.phase === 'ctf');
     let html = '';
 
     // ---------- Team management (always visible) ----------
@@ -510,9 +748,10 @@ function render(state) {
                     ${judgeButtonsHtml(state.teams)}
                     <button class="btn-sm" onclick="judge(0, 'close')">No correct answer / close question</button>
                 `}
+                ${raisedHandHtml(state)}
             </div>`;
         } else {
-            html += `<div class="card"><h2>Elimination round board</h2>${boardGridHtml(state.board)}</div>`;
+            html += `<div class="card"><h2>Elimination round board</h2>${boardGridHtml(state.board)}${raisedHandHtml(state)}</div>`;
         }
     }
 
@@ -551,8 +790,9 @@ function render(state) {
 
     if (state.phase === 'ctf') {
         const c = state.ctf;
+        const timeUp = c.remaining <= 0 && !c.winner_team_id;
         html += `<div class="card">
-            <h2>CTF resolution: ${escapeHtml(c.title)}</h2>
+            <h2>CTF resolution: ${escapeHtml(c.title)} <span class="muted" style="font-size:0.9rem;">(Round ${c.round})</span></h2>
             <div class="timer">${formatTime(c.remaining)}</div>
             ${c.prompt_visible ? `
                 <div class="ctf-prompt">${escapeHtml(c.prompt)}</div>
@@ -561,7 +801,18 @@ function render(state) {
                 <button class="btn-primary" onclick="revealCipher()">Reveal cipher</button>
             `}
             <p class="muted"><strong>Host hint:</strong> ${escapeHtml(c.hint || '')}</p>
-            <p class="muted">Waiting for a finalist to submit the correct flag from the Team Submission page...</p>
+            <p class="muted">Waiting for both finalists to submit. A winner is declared only when one team is correct and the other is not.</p>
+
+            ${timeUp ? `
+                <div class="ctf-prompt" style="border-color: rgba(231, 76, 60, 0.5); color:#e74c3c; text-align:center;">
+                    Time's up and nobody captured the flag. Start another round with a fresh challenge to keep the tiebreaker going.
+                </div>
+                <button class="btn-warning" onclick="nextCtfRound()">Start next round (new random challenge)</button>
+            ` : ''}
+
+            <h3 id="submissionsHeading">Flag submissions</h3>
+            <div id="submissionsList">${submissionsHtml(c.submissions)}</div>
+
             <h3>Manual override</h3>
             ${state.teams.filter(t => t.status === 'finalist').map(t =>
                 `<button class="btn-sm btn-warning" onclick="declareWinner(${t.id})">Declare ${escapeHtml(t.name)} winner</button>`
@@ -599,6 +850,59 @@ function render(state) {
     html += `</div>`; // close grid-2
 
     document.getElementById('app').innerHTML = html;
+}
+
+// Jumps the host down to the live "Flag submissions" panel instead of
+// opening the (now removed) standalone team submission page. Only exists
+// while the CTF phase is showing its card, so warn instead if it's not there.
+function scrollToSubmissions() {
+    const heading = document.getElementById('submissionsHeading');
+    if (!heading) {
+        showHostAlert('No CTF round active', 'No CTF round is currently active, so there are no flag submissions to show yet.', 'info');
+        return;
+    }
+    heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    heading.classList.add('submissions-flash');
+    setTimeout(() => heading.classList.remove('submissions-flash'), 1200);
+}
+
+function hostSwalOptions(options = {}) {
+    return {
+        confirmButtonText: 'OK',
+        background: '#0d1b4c',
+        color: '#e2e8f0',
+        confirmButtonColor: '#ffd700',
+        customClass: {
+            popup: 'webfeud-swal-popup',
+            title: 'webfeud-swal-title',
+            htmlContainer: 'webfeud-swal-text',
+            confirmButton: 'webfeud-swal-confirm',
+            cancelButton: 'webfeud-swal-cancel'
+        },
+        ...options
+    };
+}
+
+function showHostAlert(title, text, icon = 'error') {
+    return Swal.fire(hostSwalOptions({
+        title,
+        text,
+        icon
+    }));
+}
+
+async function runHostAction(action, data = {}, errorTitle = 'Action failed') {
+    try {
+        const result = await api(action, data);
+        if (result && result.error) {
+            await showHostAlert(errorTitle, result.error);
+            return false;
+        }
+        return true;
+    } catch (e) {
+        await showHostAlert(errorTitle, e.message || 'Please try again.');
+        return false;
+    }
 }
 
 function formatTime(sec) {
@@ -639,47 +943,71 @@ async function addTeam(e) {
     }
     return false;
 }
-async function eliminateTeam(id) { await api('eliminate', { team_id: id }); loop(); }
-async function reinstateTeam(id) { await api('reinstate', { team_id: id }); loop(); }
+async function eliminateTeam(id) { if (await runHostAction('eliminate', { team_id: id }, 'Unable to eliminate team')) loop(); }
+async function reinstateTeam(id) { if (await runHostAction('reinstate', { team_id: id }, 'Unable to reinstate team')) loop(); }
 async function startGame() { 
     try {
         const result = await api('start_game');
         if (result.error) {
-            alert('Error: ' + result.error);
+            showHostAlert('Action blocked', result.error);
         } else {
             await loop();
         }
     } catch (e) {
-        alert('Failed to start game: ' + e.message);
+        showHostAlert('Failed to start game', e.message);
     }
 }
-async function selectQuestion(id) { await api('select_question', { question_id: id }); loop(); }
-async function revealQuestion() { await api('reveal_question'); loop(); }
-async function revealAnswer() { await api('reveal_answer'); loop(); }
-async function judge(teamId, result) { await api('judge', { team_id: teamId, result }); loop(); }
-async function startFinal() { await api('start_final'); loop(); }
+async function selectQuestion(id) { if (await runHostAction('select_question', { question_id: id }, 'Unable to select question')) loop(); }
+async function revealQuestion() { if (await runHostAction('reveal_question', {}, 'Unable to reveal question')) loop(); }
+async function revealAnswer() { if (await runHostAction('reveal_answer', {}, 'Unable to reveal answer')) loop(); }
+async function judge(teamId, result) { if (await runHostAction('judge', { team_id: teamId, result }, 'Unable to judge answer')) loop(); }
+async function startFinal() { if (await runHostAction('start_final', {}, 'Unable to start final round')) loop(); }
 async function setWager(teamId) {
     const wager = document.getElementById('wager_' + teamId).value;
     const result = await api('set_wager', { team_id: teamId, wager });
-    if (!result.ok) alert(result.error || 'Unable to save wager.');
+    if (!result.ok) showHostAlert('Unable to save wager', result.error || 'Please try again.');
     loop();
 }
 async function revealCipher() {
     const result = await api('start_cipher');
-    if (!result.ok) alert(result.error || 'Unable to reveal the cipher.');
+    if (!result.ok) showHostAlert('Unable to reveal cipher', result.error || 'Please try again.');
     loop();
 }
-async function revealFinalQuestion() { await api('reveal_final_question'); loop(); }
-async function gradeFinal(teamId, correct) { await api('grade_final', { team_id: teamId, correct: correct ? 1 : 0 }); loop(); }
-async function declareWinner(teamId) {
-    if (!confirm('Declare this team the winner?')) return;
-    await api('declare_winner', { team_id: teamId });
+async function nextCtfRound() {
+    const result = await api('next_ctf_round');
+    if (!result.ok) showHostAlert('Unable to start next round', result.error || 'Please try again.');
     loop();
+}
+async function revealFinalQuestion() { if (await runHostAction('reveal_final_question', {}, 'Unable to reveal final question')) loop(); }
+async function gradeFinal(teamId, correct) { if (await runHostAction('grade_final', { team_id: teamId, correct: correct ? 1 : 0 }, 'Unable to grade final answer')) loop(); }
+async function declareWinner(teamId) {
+    const result = await Swal.fire(hostSwalOptions({
+        title: 'Declare winner?',
+        text: 'Declare this team the winner?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Declare winner',
+        cancelButtonText: 'Cancel',
+        reverseButtons: true,
+        cancelButtonColor: '#475569'
+    }));
+    if (!result.isConfirmed) return;
+    if (await runHostAction('declare_winner', { team_id: teamId }, 'Unable to declare winner')) loop();
 }
 async function resetGame() {
-    if (!confirm('This resets ALL scores and progress. Continue?')) return;
-    await api('reset_game');
-    loop();
+    const result = await Swal.fire(hostSwalOptions({
+        title: 'Reset game?',
+        text: 'This resets ALL scores and progress. Continue?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Reset',
+        cancelButtonText: 'Cancel',
+        reverseButtons: true,
+        confirmButtonColor: '#e74c3c',
+        cancelButtonColor: '#475569'
+    }));
+    if (!result.isConfirmed) return;
+    if (await runHostAction('reset_game', {}, 'Unable to reset game')) loop();
 }
 
 async function loop() {
