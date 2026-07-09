@@ -206,7 +206,7 @@ if (empty($_SESSION['player_auth']) || empty($_SESSION['player_name']) || empty(
     /* Scoreboard */
     .scoreboard {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        grid-template-columns: repeat(6, 1fr);
         gap: 14px;
     }
 
