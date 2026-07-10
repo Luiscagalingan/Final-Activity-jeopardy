@@ -1,0 +1,5 @@
+.git
+.agents
+.qodo
+.vscode
+data/*.json
