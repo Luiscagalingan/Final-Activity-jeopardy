@@ -1,5 +1,9 @@
 <?php
 require_once __DIR__ . '/../includes/functions.php';
+set_exception_handler(function (Throwable $e): void {
+    error_log($e);
+    json_response(['error' => 'Server error. Please try again.'], 500);
+});
 session_start();
 
 $action = $_POST['action'] ?? '';
@@ -14,7 +18,7 @@ $hostOnlyActions = [
 ];
 
 if (in_array($action, $hostOnlyActions, true) && empty($_SESSION['host_auth'])) {
-    json_response(['error' => 'Not authorized. Please log in as host.'], 401);
+    json_response(['error' => 'Host session expired. Please log in again.', 'redirect' => '../host/login.php'], 401);
 }
 
 // submit_flag is a player action - it must come from a logged-in player,
@@ -23,8 +27,15 @@ if (in_array($action, $hostOnlyActions, true) && empty($_SESSION['host_auth'])) 
 // supplied team_id would let anyone submit, or vote, on behalf of a team
 // that isn't theirs.
 if ($action === 'submit_flag' && (empty($_SESSION['player_auth']) || empty($_SESSION['player_team_id']))) {
-    json_response(['error' => 'Not authorized. Please log in as a player.'], 401);
+    json_response(['error' => 'Player session expired. Please log in again.', 'redirect' => '../board/player_login.php'], 401);
 }
+
+if (!csrf_token_is_valid($_POST['csrf_token'] ?? null)) {
+    json_response(['error' => 'Session token expired. Refresh the page and try again.'], 403);
+}
+
+$sessionPlayerTeamId = (int)($_SESSION['player_team_id'] ?? 0);
+session_write_close();
 
 $pdo = get_db();
 
@@ -367,7 +378,7 @@ switch ($action) {
     // any team_id posted from the client is ignored so a player can never
     // submit on behalf of a team that isn't theirs.
     case 'submit_flag': {
-        $teamId = (int)$_SESSION['player_team_id'];
+        $teamId = $sessionPlayerTeamId;
         $flag = trim($_POST['flag'] ?? '');
         $state = get_state();
 
@@ -406,10 +417,17 @@ switch ($action) {
         // Store the raw text the team typed (not just the verdict) so the
         // host can review every attempt on the dashboard, including near
         // misses and typos.
-        $stmt = $pdo->prepare(
-            'INSERT INTO flag_submissions (ctf_id, team_id, submitted_flag, is_correct) VALUES (?, ?, ?, ?)'
-        );
-        $stmt->execute([$ctf['id'], $teamId, $flag, $isCorrect ? 1 : 0]);
+        try {
+            $stmt = $pdo->prepare(
+                'INSERT INTO flag_submissions (ctf_id, team_id, submitted_flag, is_correct) VALUES (?, ?, ?, ?)'
+            );
+            $stmt->execute([$ctf['id'], $teamId, $flag, $isCorrect ? 1 : 0]);
+        } catch (PDOException $e) {
+            if ($e->getCode() === '23000') {
+                json_response(['ok' => true, 'already_submitted' => true, 'pending' => true]);
+            }
+            throw $e;
+        }
 
         $resolution = resolve_ctf_round_if_ready((int)$ctf['id']);
 

@@ -6,8 +6,37 @@ const HOST_PIN = '1234'; // change this before running your event
 function json_response($data, int $status = 200): void {
     http_response_code($status);
     header('Content-Type: application/json');
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
     echo json_encode($data);
     exit;
+}
+
+function redirect_to(string $path): void {
+    header('Location: ' . $path);
+    exit;
+}
+
+function csrf_token(): string {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
+
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+
+    return $_SESSION['csrf_token'];
+}
+
+function csrf_token_is_valid(?string $token): bool {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
+
+    return is_string($token)
+        && !empty($_SESSION['csrf_token'])
+        && hash_equals($_SESSION['csrf_token'], $token);
 }
 
 function get_state(): array {
@@ -183,33 +212,80 @@ function player_logout(): void {
         session_start();
     }
 
-    $_SESSION = [];
+    unset(
+        $_SESSION['player_auth'],
+        $_SESSION['player_id'],
+        $_SESSION['player_name'],
+        $_SESSION['player_team_id'],
+        $_SESSION['player_team_name'],
+        $_SESSION['player_role']
+    );
 
-    if (ini_get('session.use_cookies')) {
-        $params = session_get_cookie_params();
-        setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+    if (empty($_SESSION)) {
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+        }
+        session_destroy();
+    } else {
+        session_regenerate_id(true);
     }
-
-    session_destroy();
 }
 
-function player_require_login(): void {
+function host_logout(): void {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
+
+    unset($_SESSION['host_auth']);
+    if (empty($_SESSION)) {
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+        }
+        session_destroy();
+    } else {
+        session_regenerate_id(true);
+    }
+}
+
+function player_require_login(?string $loginPath = null): void {
     if (session_status() !== PHP_SESSION_ACTIVE) {
         session_start();
     }
 
     if (empty($_SESSION['player_auth']) || (empty($_SESSION['player_id']) && empty($_SESSION['player_team_id']))) {
-        $scriptDir = dirname($_SERVER['SCRIPT_NAME'] ?? '');
-        $loginPath = ($scriptDir && $scriptDir !== '/' ? $scriptDir : '') . '/player_login.php';
-        header('Location: ' . $loginPath);
-        exit;
+        if ($loginPath === null) {
+            $scriptDir = dirname($_SERVER['SCRIPT_NAME'] ?? '');
+            $loginPath = ($scriptDir && $scriptDir !== '/' ? $scriptDir : '') . '/player_login.php';
+        }
+        redirect_to($loginPath);
     }
 }
 
 function host_require_login(): void {
-    session_start();
-    if (empty($_SESSION['host_auth'])) {
-        header('Location: login.php');
-        exit;
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
     }
+    if (empty($_SESSION['host_auth'])) {
+        redirect_to('login.php');
+    }
+}
+
+function board_require_player_or_host(): void {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
+
+    if (empty($_SESSION['player_auth']) && empty($_SESSION['host_auth'])) {
+        redirect_to('player_login.php');
+    }
+}
+
+function is_player_logged_in(): bool {
+    return !empty($_SESSION['player_auth']) && !empty($_SESSION['player_team_id']);
+}
+
+function is_host_logged_in(): bool {
+    return !empty($_SESSION['host_auth']);
 }

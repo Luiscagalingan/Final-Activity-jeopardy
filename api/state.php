@@ -1,9 +1,32 @@
 <?php
 require_once __DIR__ . '/../includes/functions.php';
+set_exception_handler(function (Throwable $e): void {
+    error_log($e);
+    json_response(['error' => 'Server error. Please try again.'], 500);
+});
 session_start();
 
 $view = $_GET['view'] ?? 'board'; // 'board' (public) or 'host' (includes answers)
+$auth = $_GET['auth'] ?? '';
 $isHost = $view === 'host' && !empty($_SESSION['host_auth']);
+
+if ($view === 'host' && !$isHost) {
+    json_response(['error' => 'Host session expired.', 'redirect' => '../host/login.php'], 401);
+}
+
+if ($view === 'board' && empty($_SESSION['player_auth']) && empty($_SESSION['host_auth'])) {
+    json_response(['error' => 'Session expired.', 'redirect' => '../board/player_login.php'], 401);
+}
+
+if ($auth === 'player' && empty($_SESSION['player_auth'])) {
+    json_response(['error' => 'Player session expired.', 'redirect' => '../board/player_login.php'], 401);
+}
+
+if ($auth === 'host' && empty($_SESSION['host_auth'])) {
+    json_response(['error' => 'Host session expired.', 'redirect' => '../host/login.php'], 401);
+}
+
+session_write_close();
 
 $state = get_state();
 $teams = get_teams();
@@ -69,8 +92,8 @@ if (in_array($state['phase'], ['final_wager', 'final_question', 'final_reveal'],
     $fq = get_final_question();
     $wagers = get_final_wagers();
     $payload['final'] = [
-        'question' => (in_array($state['phase'], ['final_question', 'final_reveal'], true)) ? $fq['question'] : null,
-        'answer'   => ($isHost || $state['phase'] === 'final_reveal') ? $fq['answer'] : null,
+        'question' => ($fq && in_array($state['phase'], ['final_question', 'final_reveal'], true)) ? $fq['question'] : null,
+        'answer'   => ($fq && ($isHost || $state['phase'] === 'final_reveal')) ? $fq['answer'] : null,
         'wagers'   => $isHost ? $wagers : array_map(fn($w) => ['team_id' => (int)$w['team_id']], $wagers),
     ];
 }
@@ -78,6 +101,9 @@ if (in_array($state['phase'], ['final_wager', 'final_question', 'final_reveal'],
 // CTF resolution data (the flag hash itself is NEVER sent to the client)
 if ($state['phase'] === 'ctf' && $state['active_ctf_id']) {
     $ctf = get_ctf_challenge((int)$state['active_ctf_id']);
+    if (!$ctf) {
+        json_response(['error' => 'The active CTF challenge no longer exists.'], 500);
+    }
     $elapsed = $state['ctf_start_time'] ? (time() - strtotime($state['ctf_start_time'])) : 0;
     $remaining = max(0, $ctf['duration_seconds'] - $elapsed);
     $competitors = get_ctf_competitors();

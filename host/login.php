@@ -5,6 +5,7 @@ session_start();
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (($_POST['pin'] ?? '') === HOST_PIN) {
+        session_regenerate_id(true);
         $_SESSION['host_auth'] = true;
         ?>
         <!DOCTYPE html>

@@ -1,6 +1,15 @@
 <?php
 require_once __DIR__ . '/../includes/functions.php';
-host_require_login();
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+if (empty($_SESSION['host_auth'])) {
+    if (isset($_GET['fetch_challenge'])) {
+        json_response(['error' => 'Host session expired.', 'redirect' => '../host/login.php'], 401);
+    }
+    redirect_to('../host/login.php');
+}
+$csrfToken = csrf_token();
 
 $pdo = get_db();
 
@@ -12,58 +21,63 @@ $generatedHash = '';
 // HANDLE FORM SUBMISSION
 // ---------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
-    $mode        = $_POST['mode'] ?? 'update';           // 'update' or 'create'
-    $challengeId = $_POST['challenge_id'] ?? null;
-    $title       = trim($_POST['title'] ?? '');
-    $prompt      = trim($_POST['prompt'] ?? '');
-    $hint        = trim($_POST['hint'] ?? '');
-    $duration    = (int)($_POST['duration_seconds'] ?? 180);
-    $plainFlag   = $_POST['plain_flag'] ?? '';
-
-    if ($plainFlag === '') {
-        $message = 'Flag text cannot be empty.';
-        $messageType = 'error';
-    } elseif ($title === '' || $prompt === '') {
-        $message = 'Title and prompt are required.';
+    if (!csrf_token_is_valid($_POST['csrf_token'] ?? null)) {
+        $message = 'Your session token expired. Refresh the page and try again.';
         $messageType = 'error';
     } else {
-        // This is the ONLY place a hash should ever be generated.
-        // Uses the exact same algorithm as the check in api/action.php's
-        // submit_flag case: hash('sha256', $flag) === $ctf['flag_hash']
-        // So a correct submission will always match.
-        $generatedHash = hash('sha256', $plainFlag);
 
-        try {
-            if ($mode === 'create') {
-                $stmt = $pdo->prepare(
-                    "INSERT INTO ctf_challenges
-                        (title, prompt, flag_hash, hint, duration_seconds, is_used)
-                     VALUES (?, ?, ?, ?, ?, 0)"
-                );
-                $stmt->execute([$title, $prompt, $generatedHash, $hint, $duration]);
-                $newId = $pdo->lastInsertId();
-                $message = "New challenge created (id {$newId}) with a verified flag hash.";
-                $messageType = 'success';
+        $mode        = $_POST['mode'] ?? 'update';           // 'update' or 'create'
+        $challengeId = $_POST['challenge_id'] ?? null;
+        $title       = trim($_POST['title'] ?? '');
+        $prompt      = trim($_POST['prompt'] ?? '');
+        $hint        = trim($_POST['hint'] ?? '');
+        $duration    = (int)($_POST['duration_seconds'] ?? 180);
+        $plainFlag   = $_POST['plain_flag'] ?? '';
 
-            } else { // update existing
-                if (!$challengeId) {
-                    $message = 'Please select a challenge to update.';
-                    $messageType = 'error';
-                } else {
-                    $stmt = $pdo->prepare(
-                        "UPDATE ctf_challenges
-                         SET title = ?, prompt = ?, flag_hash = ?, hint = ?, duration_seconds = ?
-                         WHERE id = ?"
-                    );
-                    $stmt->execute([$title, $prompt, $generatedHash, $hint, $duration, $challengeId]);
-                    $message = "Challenge id {$challengeId} updated with a verified flag hash.";
-                    $messageType = 'success';
-                }
-            }
-        } catch (PDOException $e) {
-            $message = 'Database error: ' . $e->getMessage();
+        if ($plainFlag === '') {
+            $message = 'Flag text cannot be empty.';
             $messageType = 'error';
+        } elseif ($title === '' || $prompt === '') {
+            $message = 'Title and prompt are required.';
+            $messageType = 'error';
+        } else {
+            // This is the ONLY place a hash should ever be generated.
+            // Uses the exact same algorithm as the check in api/action.php's
+            // submit_flag case: hash('sha256', $flag) === $ctf['flag_hash']
+            // So a correct submission will always match.
+            $generatedHash = hash('sha256', $plainFlag);
+
+            try {
+                if ($mode === 'create') {
+                    $stmt = $pdo->prepare(
+                        "INSERT INTO ctf_challenges
+                            (title, prompt, flag_hash, hint, duration_seconds, is_used)
+                         VALUES (?, ?, ?, ?, ?, 0)"
+                    );
+                    $stmt->execute([$title, $prompt, $generatedHash, $hint, $duration]);
+                    $newId = $pdo->lastInsertId();
+                    $message = "New challenge created (id {$newId}) with a verified flag hash.";
+                    $messageType = 'success';
+
+                } else { // update existing
+                    if (!$challengeId) {
+                        $message = 'Please select a challenge to update.';
+                        $messageType = 'error';
+                    } else {
+                        $stmt = $pdo->prepare(
+                            "UPDATE ctf_challenges
+                             SET title = ?, prompt = ?, flag_hash = ?, hint = ?, duration_seconds = ?
+                             WHERE id = ?"
+                        );
+                        $stmt->execute([$title, $prompt, $generatedHash, $hint, $duration, $challengeId]);
+                        $message = "Challenge id {$challengeId} updated with a verified flag hash.";
+                        $messageType = 'success';
+                    }
+                }
+            } catch (PDOException $e) {
+                $message = 'Database error: ' . $e->getMessage();
+                $messageType = 'error';
+            }
         }
     }
 }
@@ -137,6 +151,7 @@ $activeCtfId = $stateRow['active_ctf_id'] ?? null;
 
 <div class="box">
     <form method="POST" id="flagManagerForm">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
         <div class="mode-toggle">
             <label><input type="radio" name="mode" value="update" checked onclick="toggleMode('update')"> Update existing challenge</label>
             <label><input type="radio" name="mode" value="create" onclick="toggleMode('create')"> Create new challenge</label>
@@ -208,8 +223,21 @@ function toggleMode(mode) {
 async function fillForm(id) {
     if (!id) return;
     try {
-        const res = await fetch(`${window.location.pathname}?fetch_challenge=${encodeURIComponent(id)}`);
-        const data = await res.json();
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 8000);
+        const res = await fetch(`${window.location.pathname}?fetch_challenge=${encodeURIComponent(id)}`, {
+            credentials: 'same-origin',
+            cache: 'no-store',
+            signal: controller.signal
+        });
+        clearTimeout(timer);
+        const text = await res.text();
+        const data = text ? JSON.parse(text) : null;
+        if (res.status === 401) {
+            window.location.replace((data && data.redirect) || '../host/login.php');
+            return;
+        }
+        if (!res.ok) throw new Error((data && data.error) || 'Request failed');
         if (!data) return;
         document.getElementById('title').value = data.title || '';
         document.getElementById('prompt').value = data.prompt || '';

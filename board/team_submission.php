@@ -1,9 +1,7 @@
 <?php
-session_start();
-if (empty($_SESSION['player_auth']) || empty($_SESSION['player_name']) || empty($_SESSION['player_team_id'])) {
-    header('Location: player_login.php');
-    exit;
-}
+require_once __DIR__ . '/../includes/functions.php';
+player_require_login();
+$csrfToken = csrf_token();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -303,20 +301,53 @@ if (empty($_SESSION['player_auth']) || empty($_SESSION['player_name']) || empty(
 
 <script>
 const teamId = <?php echo json_encode($_SESSION['player_team_id']); ?>;
+const csrfToken = <?php echo json_encode($csrfToken); ?>;
 const form = document.getElementById('flagForm');
 const resultMsg = document.getElementById('resultMsg');
 const submitBtn = document.getElementById('submitBtn');
 const flagInput = document.getElementById('flagInput');
 let formLocked = false;
 let activeCtfId = null;
+let pollTimer = null;
+let polling = false;
+let consecutivePollFailures = 0;
+
+function redirectToPlayerLogin(path) {
+    window.location.replace(path || 'player_login.php');
+}
+
+async function fetchJson(url, options = {}, timeoutMs = 8000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const res = await fetch(url, {
+            credentials: 'same-origin',
+            cache: 'no-store',
+            ...options,
+            signal: controller.signal
+        });
+        const text = await res.text();
+        let data = null;
+        try {
+            data = text ? JSON.parse(text) : null;
+        } catch (e) {
+            throw new Error('Invalid server response');
+        }
+        if (res.status === 401) {
+            redirectToPlayerLogin(data && data.redirect);
+            return null;
+        }
+        if (!res.ok) {
+            throw new Error((data && data.error) || 'Request failed');
+        }
+        return data;
+    } finally {
+        clearTimeout(timer);
+    }
+}
 
 async function fetchState() {
-    try {
-        const res = await fetch('../api/state.php?view=board');
-        return await res.json();
-    } catch (e) {
-        return null;
-    }
+    return fetchJson('../api/state.php?view=board&auth=player');
 }
 
 function formatTime(sec) {
@@ -434,11 +465,23 @@ function showResult(type, text) {
 }
 
 async function loop() {
-    const state = await fetchState();
-    renderState(state);
+    if (polling) return;
+    polling = true;
+    try {
+        const state = await fetchState();
+        if (state) {
+            consecutivePollFailures = 0;
+            renderState(state);
+        }
+    } catch (e) {
+        consecutivePollFailures++;
+    } finally {
+        polling = false;
+        clearTimeout(pollTimer);
+        pollTimer = setTimeout(loop, consecutivePollFailures ? Math.min(10000, 1500 * consecutivePollFailures) : 1500);
+    }
 }
 loop();
-setInterval(loop, 1500);
 
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -453,15 +496,16 @@ form.addEventListener('submit', async (e) => {
     try {
         const body = new URLSearchParams();
         body.set('action', 'submit_flag');
+        body.set('csrf_token', csrfToken);
         body.set('team_id', teamId);
         body.set('flag', flag);
 
-        const res = await fetch('../api/action.php', {
+        const data = await fetchJson('../api/action.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: body.toString()
         });
-        const data = await res.json();
+        if (!data) return;
 
         if (data.error) {
             showResult('error', data.error);

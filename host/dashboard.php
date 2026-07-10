@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/functions.php';
 host_require_login();
+$csrfToken = csrf_token();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -564,7 +565,6 @@ host_require_login();
     <div class="topbar">
         <div><strong>Web Feud Host Dashboard</strong> <span class="phase-pill" id="phasePill">Loading...</span></div>
         <div class="topbar-right">
-            <a href="../board/main_board.php" target="_blank" class="btn">Open Main Board</a>
             <button type="button" id="ctfSubmitBtn" class="ctf-submit-link" onclick="scrollToSubmissions()">View Flag Submissions</button>
             <a href="logout.php" class="logout-link">Log out</a>
         </div>
@@ -574,9 +574,47 @@ host_require_login();
 
 <script>
 let lastHostAuthSignal = localStorage.getItem('webFeudHostAuthChanged') || '';
+const csrfToken = <?php echo json_encode($csrfToken); ?>;
+let pollTimer = null;
+let polling = false;
+let consecutivePollFailures = 0;
 
 function wait(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function redirectToHostLogin(path) {
+    window.location.replace(path || 'login.php');
+}
+
+async function fetchJson(url, options = {}, timeoutMs = 8000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const res = await fetch(url, {
+            credentials: 'same-origin',
+            cache: 'no-store',
+            ...options,
+            signal: controller.signal
+        });
+        const text = await res.text();
+        let payload = null;
+        try {
+            payload = text ? JSON.parse(text) : null;
+        } catch (e) {
+            throw new Error('Invalid server response');
+        }
+        if (res.status === 401) {
+            redirectToHostLogin(payload && payload.redirect);
+            return null;
+        }
+        if (!res.ok) {
+            throw new Error((payload && payload.error) || 'Request failed');
+        }
+        return payload;
+    } finally {
+        clearTimeout(timer);
+    }
 }
 
 function hostAuthSignalChanged() {
@@ -591,25 +629,18 @@ function hostAuthSignalChanged() {
 async function api(action, data = {}, retriedAfterAuth = false) {
     const form = new FormData();
     form.append('action', action);
+    form.append('csrf_token', csrfToken);
     for (const k in data) form.append(k, data[k]);
-    const res = await fetch('../api/action.php', { 
+    const payload = await fetchJson('../api/action.php', { 
         method: 'POST', 
-        body: form,
-        credentials: 'same-origin'
+        body: form
     });
-    const payload = await res.json();
-
-    if (res.status === 401 && !retriedAfterAuth && hostAuthSignalChanged()) {
-        await wait(150);
-        return api(action, data, true);
-    }
 
     return payload;
 }
 
 async function fetchState() {
-    const res = await fetch('../api/state.php?view=host', { credentials: 'same-origin' });
-    return res.json();
+    return fetchJson('../api/state.php?view=host');
 }
 
 function escapeHtml(s) {
@@ -1011,12 +1042,24 @@ async function resetGame() {
 }
 
 async function loop() {
-    const state = await fetchState();
-    if (state.current_question) state._questionText = state.current_question.question;
-    render(state);
+    if (polling) return;
+    polling = true;
+    try {
+        const state = await fetchState();
+        if (state) {
+            consecutivePollFailures = 0;
+            if (state.current_question) state._questionText = state.current_question.question;
+            render(state);
+        }
+    } catch (e) {
+        consecutivePollFailures++;
+    } finally {
+        polling = false;
+        clearTimeout(pollTimer);
+        pollTimer = setTimeout(loop, consecutivePollFailures ? Math.min(10000, 1500 * consecutivePollFailures) : 1500);
+    }
 }
 loop();
-setInterval(loop, 1500);
 </script>
 </body>
 </html>

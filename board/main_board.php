@@ -1,9 +1,13 @@
 <?php
-session_start();
-if (empty($_SESSION['player_auth']) || empty($_SESSION['player_name']) || empty($_SESSION['player_team_id'])) {
-    header('Location: player_login.php');
-    exit;
-}
+require_once __DIR__ . '/../includes/functions.php';
+board_require_player_or_host();
+
+$isPlayerView = is_player_logged_in();
+$viewerLabel = $isPlayerView
+    ? ('Team: ' . ($_SESSION['player_team_name'] ?? 'Unknown') . ' | ' . ($_SESSION['player_name'] ?? ''))
+    : 'Host board view';
+$logoutHref = $isPlayerView ? 'logout.php' : '../host/logout.php';
+$csrfToken = csrf_token();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -494,7 +498,7 @@ if (empty($_SESSION['player_auth']) || empty($_SESSION['player_name']) || empty(
 </head>
 <body class="board-page">
     <div class="board-header">
-        <div class="team-badge">Team: <?php echo htmlspecialchars($_SESSION['player_team_name'] ?? 'Unknown'); ?> <span class="player-name-sep">·</span> <?php echo htmlspecialchars($_SESSION['player_name'] ?? ''); ?></div>
+        <div class="team-badge"><?php echo htmlspecialchars($viewerLabel); ?></div>
         <div class="board-header-content">
             <span class="phase-pill" id="phasePill">Loading...</span>
             <h1>Web Feud: Information Security Edition</h1>
@@ -502,7 +506,7 @@ if (empty($_SESSION['player_auth']) || empty($_SESSION['player_name']) || empty(
         </div>
         <div class="header-right">
             <a href="team_submission.php" id="ctfSubmitBtn" class="ctf-submit-link">Submit CTF</a>
-            <a href="logout.php" class="logout-link">Log out</a>
+            <a href="<?php echo htmlspecialchars($logoutHref); ?>" class="logout-link">Log out</a>
         </div>
     </div>
 
@@ -512,20 +516,54 @@ if (empty($_SESSION['player_auth']) || empty($_SESSION['player_name']) || empty(
     </div>
 
 <script>
-const myTeamId = <?php echo json_encode($_SESSION['player_team_id']); ?>;
+const myTeamId = <?php echo json_encode($isPlayerView ? (int)$_SESSION['player_team_id'] : null); ?>;
+const authMode = <?php echo json_encode($isPlayerView ? 'player' : 'host'); ?>;
+const csrfToken = <?php echo json_encode($csrfToken); ?>;
 const CATEGORY_COLORS = ['','',''];
 let raisePending = false;
 let raiseStatusText = '';
 let raiseStatusQuestionKey = null;
 let lastHostAuthSignal = localStorage.getItem('webFeudHostAuthChanged') || '';
+let pollTimer = null;
+let polling = false;
+let consecutivePollFailures = 0;
+
+function redirectToLogin(path) {
+    window.location.replace(path || (authMode === 'host' ? '../host/login.php' : 'player_login.php'));
+}
+
+async function fetchJson(url, options = {}, timeoutMs = 8000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const res = await fetch(url, {
+            credentials: 'same-origin',
+            cache: 'no-store',
+            ...options,
+            signal: controller.signal
+        });
+        const text = await res.text();
+        let data = null;
+        try {
+            data = text ? JSON.parse(text) : null;
+        } catch (e) {
+            throw new Error('Invalid server response');
+        }
+        if (res.status === 401) {
+            redirectToLogin(data && data.redirect);
+            return null;
+        }
+        if (!res.ok) {
+            throw new Error((data && data.error) || 'Request failed');
+        }
+        return data;
+    } finally {
+        clearTimeout(timer);
+    }
+}
 
 async function fetchState() {
-    try {
-        const res = await fetch('../api/state.php?view=board');
-        return await res.json();
-    } catch (e) {
-        return null;
-    }
+    return fetchJson(`../api/state.php?view=board&auth=${encodeURIComponent(authMode)}`);
 }
 
 function scoreboardHtml(teams) {
@@ -660,13 +698,12 @@ async function raiseHand() {
     render(state);
 
     try {
-        const res = await fetch('../api/raise_hand.php', {
+        const data = await fetchJson('../api/raise_hand.php', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
             body: JSON.stringify({ question_key: 'elimination' })
         });
-        const data = await res.json();
+        if (!data) return;
         raiseStatusText = data.success
             ? 'You raised first!'
             : (data.first_team_name ? `${data.first_team_name} raised first.` : (data.error || 'Raise was not recorded.'));
@@ -701,8 +738,21 @@ function boardGridHtml(categories) {
 }
 
 async function loop() {
-    const state = await fetchState();
-    render(state);
+    if (polling) return;
+    polling = true;
+    try {
+        const state = await fetchState();
+        if (state) {
+            consecutivePollFailures = 0;
+            render(state);
+        }
+    } catch (e) {
+        consecutivePollFailures++;
+    } finally {
+        polling = false;
+        clearTimeout(pollTimer);
+        pollTimer = setTimeout(loop, consecutivePollFailures ? Math.min(10000, 1500 * consecutivePollFailures) : 1500);
+    }
 }
 
 function hostAuthSignalChanged() {
@@ -734,7 +784,6 @@ document.addEventListener('visibilitychange', () => {
 });
 
 loop();
-setInterval(loop, 1500);
 </script>
 </body>
 </html>

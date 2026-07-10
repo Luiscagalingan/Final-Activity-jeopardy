@@ -20,12 +20,23 @@
  */
 
 require_once __DIR__ . '/../includes/functions.php';
+set_exception_handler(function (Throwable $e): void {
+    error_log($e);
+    json_response(['success' => false, 'error' => 'Server error. Please try again.'], 500);
+});
 
 session_start();
 
 if (empty($_SESSION['player_auth']) || empty($_SESSION['player_team_id'])) {
-    json_response(['success' => false, 'error' => 'Not logged in'], 401);
+    json_response(['success' => false, 'error' => 'Player session expired.', 'redirect' => '../board/player_login.php'], 401);
 }
+
+$sessionTeamId = (int)$_SESSION['player_team_id'];
+$sessionTeamName = $_SESSION['player_team_name'] ?? 'Unknown Team';
+if (!csrf_token_is_valid($_SERVER['HTTP_X_CSRF_TOKEN'] ?? null)) {
+    json_response(['success' => false, 'error' => 'Session token expired. Refresh the page and try again.'], 403);
+}
+session_write_close();
 
 $input = json_decode(file_get_contents('php://input'), true);
 $questionKey = isset($input['question_key']) ? (string)$input['question_key'] : null;
@@ -34,9 +45,9 @@ if (!$questionKey) {
     json_response(['success' => false, 'error' => 'Missing question_key'], 400);
 }
 
-$teamId   = (int)$_SESSION['player_team_id'];
+$teamId   = $sessionTeamId;
 $team = get_team($teamId);
-$teamName = $team['name'] ?? ($_SESSION['player_team_name'] ?? 'Unknown Team');
+$teamName = $team['name'] ?? $sessionTeamName;
 
 $gameState = get_state();
 if (($gameState['phase'] ?? '') !== 'elimination') {

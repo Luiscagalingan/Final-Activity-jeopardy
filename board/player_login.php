@@ -39,6 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$member) {
                 $error = 'Wrong group or name.';
             } else {
+                session_regenerate_id(true);
                 $_SESSION['player_auth'] = true;
                 $_SESSION['player_id'] = (int)$member['id'];
                 $_SESSION['player_name'] = $member['full_name'];
@@ -46,7 +47,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['player_team_name'] = $team['name'];
                 $_SESSION['player_role'] = 'player';
 
-                session_regenerate_id(true);
                 header('Location: main_board.php');
                 exit;
             }
