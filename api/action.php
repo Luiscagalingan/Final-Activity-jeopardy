@@ -268,63 +268,120 @@ switch ($action) {
     case 'grade_final': {
         $teamId = (int)$_POST['team_id'];
         $correct = $_POST['correct'] === '1';
-        $stmt = $pdo->prepare('SELECT wager FROM final_wagers WHERE team_id = ?');
-        $stmt->execute([$teamId]);
-        $wager = (int)($stmt->fetch()['wager'] ?? 0);
-        $delta = $correct ? $wager : -$wager;
 
-        $pdo->prepare('UPDATE teams SET score = score + ? WHERE id = ?')->execute([$delta, $teamId]);
-        $pdo->prepare('UPDATE final_wagers SET answered_correct = ? WHERE team_id = ?')
-            ->execute([$correct ? 1 : 0, $teamId]);
-
-        if (!$correct) {
-            $pdo->prepare("UPDATE teams SET status = 'eliminated' WHERE id = ?")->execute([$teamId]);
-        }
-
-        // Once both finalists are graded, decide the outcome
-        $ungraded = $pdo->query('SELECT COUNT(*) c FROM final_wagers WHERE answered_correct IS NULL')->fetch()['c'];
-        if ((int)$ungraded === 0) {
-            $finalists = $pdo->query("SELECT * FROM teams WHERE status = 'finalist' ORDER BY score DESC")->fetchAll();
-            if (count($finalists) === 1) {
-                $winner = $finalists[0];
-                $ctf = get_unused_ctf_challenge();
-                if ($ctf) {
-                    begin_ctf_round($ctf, 'Final Jeopardy complete! ' . $winner['name'] . ' advances to CTF.');
-                } else {
-                    $pdo->prepare("UPDATE teams SET status = 'winner' WHERE id = ?")->execute([$winner['id']]);
-                    update_state([
-                        'phase'          => 'finished',
-                        'winner_team_id' => $winner['id'],
-                        'message'        => $winner['name'] . ' wins the game!',
-                    ]);
-                }
-            } elseif (count($finalists) === 2) {
-                if ($finalists[0]['score'] === $finalists[1]['score']) {
-                    $ctf = get_unused_ctf_challenge();
-                    if ($ctf) {
-                        begin_ctf_round($ctf, 'Scores are tied! Resolve the winner with a live CTF challenge.');
-                    } else {
-                        update_state(['phase' => 'final_reveal', 'message' => 'Tied, but no CTF challenges remain. Host must break the tie manually.']);
-                    }
-                } else {
-                    $loser = $finalists[1];
-                    $pdo->prepare("UPDATE teams SET status = 'eliminated' WHERE id = ?")->execute([$loser['id']]);
-                    $winner = $finalists[0];
-                    $ctf = get_unused_ctf_challenge();
-                    if ($ctf) {
-                        begin_ctf_round($ctf, 'Final Jeopardy complete! ' . $winner['name'] . ' advances to CTF.');
-                    } else {
-                        $pdo->prepare("UPDATE teams SET status = 'winner' WHERE id = ?")->execute([$winner['id']]);
-                        update_state([
-                            'phase'          => 'finished',
-                            'winner_team_id' => $winner['id'],
-                            'message'        => $winner['name'] . ' wins the game!',
-                        ]);
-                    }
-                }
-            } else {
-                update_state(['phase' => 'final_reveal', 'message' => 'Both finalists answered wrong. Host must decide the next step.']);
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare(
+                'SELECT fw.team_id, fw.wager, fw.answered_correct, t.name, t.score, t.status
+                 FROM final_wagers fw
+                 JOIN teams t ON t.id = fw.team_id
+                 WHERE fw.team_id = ?
+                 FOR UPDATE'
+            );
+            $stmt->execute([$teamId]);
+            $gradedTeam = $stmt->fetch();
+            if (!$gradedTeam) {
+                $pdo->rollBack();
+                json_response(['error' => 'Finalist not found'], 400);
             }
+            if ($gradedTeam['answered_correct'] !== null) {
+                $pdo->rollBack();
+                json_response(['ok' => true, 'already_graded' => true]);
+            }
+
+            // Store this team's verdict only. Do not reveal the result,
+            // change points, eliminate anyone, or declare a winner until
+            // both finalists have been graded.
+            $pdo->prepare('UPDATE final_wagers SET answered_correct = ? WHERE team_id = ?')
+                ->execute([$correct ? 1 : 0, $teamId]);
+
+            $finalistsStmt = $pdo->query(
+                'SELECT fw.team_id, fw.wager, fw.answered_correct, t.name, t.score
+                 FROM final_wagers fw
+                 JOIN teams t ON t.id = fw.team_id
+                 ORDER BY t.score DESC, t.id ASC
+                 FOR UPDATE'
+            );
+            $finalists = $finalistsStmt->fetchAll();
+            $ungraded = array_filter($finalists, static fn($f) => $f['answered_correct'] === null);
+
+            if (count($ungraded) > 0) {
+                update_state(['message' => 'Final answer recorded. Waiting for the other finalist before revealing results.']);
+                $pdo->commit();
+                json_response(['ok' => true, 'pending' => true]);
+            }
+
+            $correctFinalists = array_values(array_filter($finalists, static fn($f) => (int)$f['answered_correct'] === 1));
+
+            if (count($correctFinalists) === 1) {
+                $winner = $correctFinalists[0];
+                foreach ($finalists as $finalist) {
+                    if ((int)$finalist['team_id'] === (int)$winner['team_id']) {
+                        $pdo->prepare('UPDATE teams SET score = score + ?, status = ? WHERE id = ?')
+                            ->execute([(int)$finalist['wager'], 'winner', (int)$finalist['team_id']]);
+                    } else {
+                        $pdo->prepare("UPDATE teams SET status = 'eliminated' WHERE id = ?")
+                            ->execute([(int)$finalist['team_id']]);
+                    }
+                }
+                update_state([
+                    'phase'          => 'finished',
+                    'winner_team_id' => $winner['team_id'],
+                    'message'        => $winner['name'] . ' was the only correct finalist and wins the game!',
+                ]);
+                $pdo->commit();
+                json_response(['ok' => true, 'resolved' => true, 'winner_team_id' => (int)$winner['team_id']]);
+            }
+
+            if (count($correctFinalists) === 2) {
+                foreach ($correctFinalists as $finalist) {
+                    $pdo->prepare('UPDATE teams SET score = score + ? WHERE id = ?')
+                        ->execute([(int)$finalist['wager'], (int)$finalist['team_id']]);
+                }
+
+                $scoredStmt = $pdo->query(
+                    'SELECT t.*
+                     FROM teams t
+                     JOIN final_wagers fw ON fw.team_id = t.id
+                     ORDER BY t.score DESC, t.id ASC
+                     FOR UPDATE'
+                );
+                $scoredFinalists = $scoredStmt->fetchAll();
+
+                if (count($scoredFinalists) >= 2 && (int)$scoredFinalists[0]['score'] === (int)$scoredFinalists[1]['score']) {
+                    $ctf = get_unused_ctf_challenge();
+                    if ($ctf) {
+                        $pdo->commit();
+                        begin_ctf_round($ctf, 'Both finalists were correct and remain tied. Resolve the winner with a live CTF challenge.');
+                        json_response(['ok' => true, 'resolved' => true, 'next_round' => true]);
+                    }
+
+                    update_state(['phase' => 'final_reveal', 'message' => 'Both finalists were correct and tied, but no CTF challenges remain. Host must break the tie manually.']);
+                    $pdo->commit();
+                    json_response(['ok' => true, 'resolved' => true, 'tied' => true, 'no_rounds_left' => true]);
+                }
+
+                $winner = $scoredFinalists[0];
+                $loser = $scoredFinalists[1];
+                $pdo->prepare("UPDATE teams SET status = 'winner' WHERE id = ?")->execute([(int)$winner['id']]);
+                $pdo->prepare("UPDATE teams SET status = 'eliminated' WHERE id = ?")->execute([(int)$loser['id']]);
+                update_state([
+                    'phase'          => 'finished',
+                    'winner_team_id' => $winner['id'],
+                    'message'        => $winner['name'] . ' wins after both finalists answered correctly!',
+                ]);
+                $pdo->commit();
+                json_response(['ok' => true, 'resolved' => true, 'winner_team_id' => (int)$winner['id']]);
+            }
+
+            update_state(['phase' => 'final_reveal', 'message' => 'Both finalists answered incorrectly. No points were awarded. Host must decide the next step.']);
+            $pdo->commit();
+            json_response(['ok' => true, 'resolved' => true, 'both_wrong' => true]);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
         }
         json_response(['ok' => true]);
         break;

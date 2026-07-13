@@ -127,11 +127,13 @@ if ($state['phase'] === 'ctf' && $state['active_ctf_id']) {
     // submitted text and each team's name attached. Never sent to the
     // public board view — it would leak in-progress guesses to other teams.
     if ($isHost) {
+        $ctfResultsVisible = count($latestSubmissions) >= count($competitors) || !empty($state['ctf_winner_team_id']);
         $payload['ctf']['submissions'] = array_map(function ($s) {
+            global $ctfResultsVisible;
             return [
                 'team_name'  => $s['team_name'],
                 'flag'       => $s['submitted_flag'],
-                'is_correct' => (bool)$s['is_correct'],
+                'is_correct' => $ctfResultsVisible ? (bool)$s['is_correct'] : null,
             ];
         }, get_flag_submissions((int)$state['active_ctf_id']));
     }
