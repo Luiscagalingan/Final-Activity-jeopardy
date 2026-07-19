@@ -620,6 +620,7 @@ $csrfToken = csrf_token();
             <section class="instructions-section">
                 <h3>Last 2 Standing</h3>
                 <ul>
+                    <li>The question stays hidden at the start. Review these instructions and wait until the host reveals it when both finalists are ready.</li>
                     <li>Only the two finalists can raise their hands, so the host sees only the 1st and 2nd positions.</li>
                     <li>There is no wager. Correct answers add points, while wrong answers do not subtract points below zero.</li>
                     <li>Both remaining finalists proceed to the CTF decider regardless of their score difference.</li>
