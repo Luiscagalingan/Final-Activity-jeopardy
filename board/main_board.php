@@ -767,6 +767,22 @@ function render(state) {
         html += scoreboardHtml(state.teams);
     }
 
+    if (state.phase === 'final_ready') {
+        html += `<div class="card">
+            <h2>Last 2 Standing — Get Ready</h2>
+            <p class="muted">The question is still hidden. Review the instructions and wait for the host to reveal it.</p>
+            <div class="instructions-section">
+                <ul>
+                    <li>Only the two finalists can participate in this round.</li>
+                    <li>When the question appears, use Raise Hand to enter the 1st or 2nd answering position.</li>
+                    <li>A correct answer adds points; a wrong answer does not subtract points below zero.</li>
+                    <li>After both answers are reviewed, both finalists proceed to the CTF Challenge.</li>
+                </ul>
+            </div>
+        </div>`;
+        html += scoreboardHtml(state.teams.filter(t => t.status === 'finalist' || t.status === 'winner'));
+    }
+
     if (state.phase === 'final_question') {
         html += `<div class="question-panel">${escapeHtml(state.final.question || '')}</div>`;
         html += raisePanelHtml(state, myTeam);

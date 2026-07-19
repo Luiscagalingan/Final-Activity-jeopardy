@@ -793,6 +793,15 @@ function render(state) {
         }
     }
 
+    if (state.phase === 'final_ready') {
+        html += `<div class="card"><h2>Last 2 Standing — Instructions</h2>
+            <p>The two finalists should review the rules and get ready. The question is still hidden from the Main Dashboard.</p>
+            <div class="ctf-prompt"><strong>Host preview:</strong> ${escapeHtml(state.final.question || '')}</div>
+            <p class="muted"><strong>Host answer:</strong> ${escapeHtml(state.final.answer || '')}</p>
+            <button class="btn-primary" onclick="revealFinalQuestion()">Reveal Last 2 Standing Question</button>
+        </div>`;
+    }
+
     if (state.phase === 'final_question' || state.phase === 'final_reveal') {
         const finalists = state.teams.filter(t => t.status === 'finalist');
         html += `<div class="card"><h2>Final Jeopardy question</h2>

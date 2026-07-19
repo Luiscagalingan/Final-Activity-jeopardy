@@ -107,12 +107,13 @@ if (in_array($state['phase'], ['elimination', 'final_question', 'final_reveal'],
     }
 }
 
-// Final Jeopardy (Last 2 Standing) data
-if (in_array($state['phase'], ['final_question', 'final_reveal'], true)) {
+// Last 2 Standing data. During final_ready, only the host receives the
+// question so players see instructions until the host explicitly reveals it.
+if (in_array($state['phase'], ['final_ready', 'final_question', 'final_reveal'], true)) {
     $fq = get_final_question();
     $wagers = get_final_wagers();
     $payload['final'] = [
-        'question' => ($fq && in_array($state['phase'], ['final_question', 'final_reveal'], true)) ? $fq['question'] : null,
+        'question' => ($fq && ($isHost || in_array($state['phase'], ['final_question', 'final_reveal'], true))) ? $fq['question'] : null,
         'answer'   => ($fq && ($isHost || $state['phase'] === 'final_reveal')) ? $fq['answer'] : null,
         'wagers'   => $isHost ? $wagers : array_map(fn($w) => ['team_id' => (int)$w['team_id']], $wagers),
     ];

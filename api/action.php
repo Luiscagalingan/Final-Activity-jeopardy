@@ -221,15 +221,23 @@ switch ($action) {
         clear_raise_hand_state();
 
         update_state([
-            'phase'   => 'final_question',
-            'message' => 'Last 2 Standing: ' . $finalists[0]['name'] . ' vs ' . $finalists[1]['name'],
+            'phase'   => 'final_ready',
+            'message' => 'Last 2 Standing: Review the instructions and wait for the host to reveal the question.',
         ]);
         json_response(['ok' => true, 'finalists' => $finalists]);
         break;
     }
 
     case 'reveal_final_question': {
-        update_state(['phase' => 'final_question']);
+        $state = get_state();
+        if ($state['phase'] !== 'final_ready') {
+            json_response(['error' => 'The Last 2 Standing question is not waiting to be revealed'], 400);
+        }
+        clear_raise_hand_state();
+        update_state([
+            'phase' => 'final_question',
+            'message' => 'Last 2 Standing question revealed. Finalists may now raise their hands.',
+        ]);
         json_response(['ok' => true]);
         break;
     }
