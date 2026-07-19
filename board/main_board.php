@@ -104,6 +104,76 @@ $csrfToken = csrf_token();
         white-space: nowrap;
     }
 
+    .instructions-button {
+        color: #ffd700;
+        font: inherit;
+        font-size: 0.85rem;
+        font-weight: 700;
+        padding: 8px 16px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 215, 0, 0.5);
+        background: rgba(255, 215, 0, 0.1);
+        white-space: nowrap;
+        cursor: pointer;
+    }
+
+    .instructions-dialog {
+        width: min(760px, calc(100% - 32px));
+        max-height: 86vh;
+        overflow: auto;
+        color: #e2e8f0;
+        background: #0d1b4c;
+        border: 2px solid #ffd700;
+        border-radius: 16px;
+        padding: 0;
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.75);
+    }
+
+    .instructions-dialog::backdrop {
+        background: rgba(2, 7, 26, 0.82);
+    }
+
+    .instructions-content {
+        padding: 26px;
+        text-align: left;
+    }
+
+    .instructions-content h2 {
+        color: #ffd700;
+        margin: 0 0 18px;
+    }
+
+    .instructions-section {
+        background: #0a1440;
+        border: 1px solid rgba(255, 215, 0, 0.3);
+        border-radius: 12px;
+        padding: 16px 18px;
+        margin-bottom: 12px;
+    }
+
+    .instructions-section h3 {
+        color: #ffd700;
+        margin: 0 0 8px;
+    }
+
+    .instructions-section ul {
+        margin: 0;
+        padding-left: 20px;
+        line-height: 1.55;
+    }
+
+    .instructions-close {
+        display: block;
+        margin: 18px 0 0 auto;
+        padding: 10px 24px;
+        border: 0;
+        border-radius: 10px;
+        background: #ffd700;
+        color: #0d1b4c;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
     .ctf-submit-link {
         display: none;
         color: #0d1b4c;
@@ -518,6 +588,9 @@ $csrfToken = csrf_token();
             <p class="muted" id="messageLine"></p>
         </div>
         <div class="header-right">
+            <?php if ($isPlayerView): ?>
+                <button type="button" class="instructions-button" onclick="openGameInstructions()">Game Instructions</button>
+            <?php endif; ?>
             <a href="team_submission.php" id="ctfSubmitBtn" class="ctf-submit-link">Submit CTF</a>
             <a href="<?php echo htmlspecialchars($logoutHref); ?>" class="logout-link">Log out</a>
         </div>
@@ -527,6 +600,49 @@ $csrfToken = csrf_token();
         <div class="eliminated-banner" id="eliminatedBanner">📺 Your team has been eliminated — sit back and enjoy the rest of the show!</div>
         <div id="app"></div>
     </div>
+
+    <?php if ($isPlayerView): ?>
+    <dialog class="instructions-dialog" id="gameInstructionsDialog">
+        <div class="instructions-content">
+            <h2>Game Instructions</h2>
+
+            <section class="instructions-section">
+                <h3>Elimination Round</h3>
+                <ul>
+                    <li>Questions are worth 25, 50, 75, 100, or 125 points.</li>
+                    <li>Press Raise Hand when the button becomes available. The host sees the complete 1st-to-6th answering order.</li>
+                    <li>If a team is marked wrong, the raise order stays visible and the next team may answer.</li>
+                    <li>A correct answer adds the question points. A wrong answer does not create a negative score.</li>
+                    <li>The two teams with the highest scores advance even when they have fewer than 300 points.</li>
+                </ul>
+            </section>
+
+            <section class="instructions-section">
+                <h3>Last 2 Standing</h3>
+                <ul>
+                    <li>Only the two finalists can raise their hands, so the host sees only the 1st and 2nd positions.</li>
+                    <li>There is no wager. Correct answers add points, while wrong answers do not subtract points below zero.</li>
+                    <li>Both remaining finalists proceed to the CTF decider regardless of their score difference.</li>
+                </ul>
+            </section>
+
+            <section class="instructions-section">
+                <h3>CTF Challenge</h3>
+                <ul>
+                    <li>Each challenge lasts 7 minutes, and the timer starts only when the host reveals the cipher.</li>
+                    <li>Open the CTF Cipher Lab in its new tab. Click Gets mo? and answer Oo to both confirmations to unlock Run.</li>
+                    <li>Choose the correct operation, type the challenge input, run it, then find and click the hidden flag to reveal the generated answer.</li>
+                    <li>Return to Submit CTF and type the flag manually; copy-and-paste is disabled.</li>
+                    <li>If both finalists submit, the timer stops and the host reviews both answers before declaring the winner.</li>
+                    <li>If only one finalist submits before time expires, that team wins automatically and the missing submission is marked wrong.</li>
+                    <li>If nobody submits, no winner is declared and the host may start another CTF round.</li>
+                </ul>
+            </section>
+
+            <button type="button" class="instructions-close" onclick="closeGameInstructions()">Got it</button>
+        </div>
+    </dialog>
+    <?php endif; ?>
 
 <script>
 const myTeamId = <?php echo json_encode($isPlayerView ? (int)$_SESSION['player_team_id'] : null); ?>;
@@ -542,6 +658,16 @@ let lastHostAuthSignal = localStorage.getItem('webFeudHostAuthChanged') || '';
 let pollTimer = null;
 let polling = false;
 let consecutivePollFailures = 0;
+
+function openGameInstructions() {
+    const dialog = document.getElementById('gameInstructionsDialog');
+    if (dialog && !dialog.open) dialog.showModal();
+}
+
+function closeGameInstructions() {
+    const dialog = document.getElementById('gameInstructionsDialog');
+    if (dialog && dialog.open) dialog.close();
+}
 
 function redirectToLogin(path) {
     window.location.replace(path || (authMode === 'host' ? '../host/login.php' : 'player_login.php'));

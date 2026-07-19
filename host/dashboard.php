@@ -712,9 +712,11 @@ function boardGridHtml(categories) {
 }
 
 function raisedHandHtml(state) {
-    const order = Array.isArray(state.raised_order) ? state.raised_order.slice(0, 6) : [];
+    const isLastTwoStanding = state.phase === 'final_question' || state.phase === 'final_reveal';
+    const visibleRanks = isLastTwoStanding ? 2 : 6;
+    const order = Array.isArray(state.raised_order) ? state.raised_order.slice(0, visibleRanks) : [];
     const rankLabels = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth'];
-    const ranking = Array.from({ length: 6 }, (_, index) => {
+    const ranking = Array.from({ length: visibleRanks }, (_, index) => {
         const entry = order[index];
         return `<div class="raise-host-panel">
             <div>

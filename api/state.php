@@ -139,6 +139,58 @@ if ($state['phase'] === 'ctf' && $state['active_ctf_id']) {
     }
     $elapsed = $state['ctf_start_time'] ? ($timerEnd - strtotime($state['ctf_start_time'])) : 0;
     $remaining = max(0, $ctf['duration_seconds'] - $elapsed);
+
+    // If time expires with exactly one finalist having submitted, that team
+    // wins by default. Record the other finalist as a wrong timeout entry so
+    // the host can clearly see why the round was resolved. When both teams
+    // submit before the deadline, the existing host-review flow is unchanged.
+    if ($remaining <= 0
+        && count($competitors) >= 2
+        && count($latestSubmissions) === 1
+        && empty($state['ctf_winner_team_id'])
+        && empty($state['winner_team_id'])) {
+        $winnerTeamId = (int)array_key_first($latestSubmissions);
+        $winnerTeam = get_team($winnerTeamId);
+
+        foreach ($competitors as $competitor) {
+            $competitorId = (int)$competitor['id'];
+            if (!isset($latestSubmissions[$competitorId])) {
+                $timeoutStmt = get_db()->prepare(
+                    'INSERT IGNORE INTO flag_submissions (ctf_id, team_id, submitted_flag, is_correct) VALUES (?, ?, ?, 0)'
+                );
+                $timeoutStmt->execute([(int)$ctf['id'], $competitorId, 'No submission (time expired)']);
+            }
+        }
+
+        get_db()->prepare("UPDATE teams SET status = 'winner' WHERE id = ?")->execute([$winnerTeamId]);
+        $winnerMessage = ($winnerTeam['name'] ?? 'The submitting team')
+            . ' wins because the other finalist did not submit before time expired!';
+        update_state([
+            'phase' => 'finished',
+            'ctf_winner_team_id' => $winnerTeamId,
+            'winner_team_id' => $winnerTeamId,
+            'message' => $winnerMessage,
+        ]);
+
+        // Reflect the resolution immediately in this polling response rather
+        // than making clients wait for one more request.
+        $state['phase'] = 'finished';
+        $state['ctf_winner_team_id'] = $winnerTeamId;
+        $state['winner_team_id'] = $winnerTeamId;
+        $state['message'] = $winnerMessage;
+        $payload['phase'] = 'finished';
+        $payload['message'] = $winnerMessage;
+        $payload['winner'] = $winnerTeam['name'] ?? null;
+        foreach ($payload['teams'] as &$payloadTeam) {
+            if ((int)$payloadTeam['id'] === $winnerTeamId) {
+                $payloadTeam['status'] = 'winner';
+            }
+        }
+        unset($payloadTeam);
+
+        $latestSubmissions = get_latest_flag_submissions_by_team((int)$ctf['id']);
+    }
+
     $myTeamId = !empty($_SESSION['player_team_id']) ? (int)$_SESSION['player_team_id'] : null;
     $payload['ctf'] = [
         'id'             => (int)$ctf['id'],
