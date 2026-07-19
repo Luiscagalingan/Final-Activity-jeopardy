@@ -90,11 +90,6 @@ $csrfToken = csrf_token();
         white-space: nowrap;
     }
 
-    .logout-link:hover, .back-link:hover {
-        background: rgba(255, 215, 0, 0.22);
-        border-color: #ffd700;
-        color: #fff4b8;
-    }
 
     .board-header-content {
         text-align: center;
@@ -212,10 +207,6 @@ $csrfToken = csrf_token();
         transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
 
-    .submit-btn:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 0 18px rgba(255, 215, 0, 0.5);
-    }
 
     .submit-btn:disabled {
         opacity: 0.5;
@@ -308,6 +299,7 @@ const submitBtn = document.getElementById('submitBtn');
 const flagInput = document.getElementById('flagInput');
 let formLocked = false;
 let activeCtfId = null;
+let lastRenderKey = null;
 let pollTimer = null;
 let polling = false;
 let consecutivePollFailures = 0;
@@ -358,6 +350,29 @@ function formatTime(sec) {
 
 function escapeHtml(s) {
     return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function submissionRenderKey(state) {
+    const c = state && state.phase === 'ctf' ? state.ctf : null;
+    return JSON.stringify({
+        phase: state ? state.phase : null,
+        ctfId: c ? c.id : null,
+        promptVisible: c ? c.prompt_visible : null,
+        winnerId: c ? c.winner_team_id : null,
+        submitted: c ? c.my_submitted : null,
+        received: c ? c.submissions_received : null,
+        needed: c ? c.submissions_needed : null,
+        timeUp: c ? c.remaining <= 0 : null
+    });
+}
+
+function updateTimerOnly(state) {
+    if (!state || state.phase !== 'ctf' || !state.ctf) return false;
+    const timer = document.getElementById('ctfTimer');
+    if (!timer) return false;
+    const nextTimer = formatTime(state.ctf.remaining);
+    if (timer.textContent !== nextTimer) timer.textContent = nextTimer;
+    return true;
 }
 
 function preserveFlagInputState(update) {
@@ -431,7 +446,9 @@ function renderState(state) {
                 }
             } else if (c.my_submitted) {
                 submitBtn.disabled = true;
-                showResult('info', `Submitted. Waiting for the other finalist (${c.submissions_received}/${c.submissions_needed}).`);
+                showResult('info', c.submissions_received >= c.submissions_needed
+                    ? 'Both finalists submitted. Waiting for the host to review the answers and declare the winner.'
+                    : `Submitted. Waiting for the other finalist (${c.submissions_received}/${c.submissions_needed}).`);
             } else if (c.remaining <= 0) {
                 submitBtn.disabled = true;
             } else {
@@ -471,7 +488,13 @@ async function loop() {
         const state = await fetchState();
         if (state) {
             consecutivePollFailures = 0;
-            renderState(state);
+            const renderKey = submissionRenderKey(state);
+            if (renderKey === lastRenderKey && updateTimerOnly(state)) {
+                // Normal polling updates only the countdown text.
+            } else {
+                renderState(state);
+                lastRenderKey = renderKey;
+            }
         }
     } catch (e) {
         consecutivePollFailures++;
@@ -482,6 +505,20 @@ async function loop() {
     }
 }
 loop();
+
+function blockFlagPaste(event) {
+    event.preventDefault();
+    showResult('error', 'Copy-paste is disabled. Type the flag manually.');
+    flagInput.focus();
+}
+
+flagInput.addEventListener('paste', blockFlagPaste);
+flagInput.addEventListener('drop', blockFlagPaste);
+flagInput.addEventListener('beforeinput', (event) => {
+    if (event.inputType === 'insertFromPaste' || event.inputType === 'insertFromDrop') {
+        blockFlagPaste(event);
+    }
+});
 
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -514,6 +551,9 @@ form.addEventListener('submit', async (e) => {
             showResult('info', 'The CTF result has already been decided.');
         } else if (data.already_submitted) {
             showResult('info', 'Your team already submitted for this round. Waiting for the other finalist.');
+        } else if (data.awaiting_host) {
+            showResult('info', 'Both finalists submitted. Waiting for the host to review the answers and declare the winner.');
+            flagInput.value = '';
         } else if (data.winner_team_id) {
             formLocked = true;
             showResult('success', data.winner_team_id === teamId ? 'Your team wins the CTF challenge!' : 'The other finalist wins this CTF challenge.');

@@ -85,7 +85,6 @@ $csrfToken = csrf_token();
         color: #b8c4e8;
         text-decoration: none;
         font-size: 0.9rem;
-        transition: filter 0.15s ease, color 0.15s ease, transform 0.05s ease;
     }
 
     /* Unified sizing for all three topbar buttons: "Open Main Board",
@@ -116,10 +115,6 @@ $csrfToken = csrf_token();
         border: 1px solid #ffd700;
     }
 
-    .topbar a.btn:hover {
-        filter: brightness(1.1);
-    }
-
     .topbar a.btn:active {
         transform: translateY(1px);
     }
@@ -132,20 +127,11 @@ $csrfToken = csrf_token();
         color: #000000;
         border: 1px solid #ffd700;
         background: #ffd700;
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
-    }
-
-    .ctf-submit-link:hover {
-        transform: translateY(-1px);
     }
 
     .ctf-submit-link.pulse {
         box-shadow: 0 0 12px rgba(255, 215, 0, 0.6);
         animation: ctf-pulse 1.6s ease-in-out infinite;
-    }
-
-    .ctf-submit-link.pulse:hover {
-        box-shadow: 0 0 18px rgba(255, 215, 0, 0.85);
     }
 
     @keyframes ctf-pulse {
@@ -159,13 +145,6 @@ $csrfToken = csrf_token();
         text-decoration: none;
         border: 1px solid rgba(255, 215, 0, 0.5);
         background: rgba(255, 215, 0, 0.1);
-        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-    }
-
-    .logout-link:hover {
-        background: rgba(255, 215, 0, 0.22);
-        border-color: #ffd700;
-        color: #fff4b8;
     }
 
     .container {
@@ -248,16 +227,6 @@ $csrfToken = csrf_token();
         text-decoration: none;
         border: none;
         cursor: pointer;
-        transition: filter 0.15s ease, transform 0.05s ease;
-    }
-
-    .btn:hover,
-    .btn-primary:hover,
-    .btn-warning:hover,
-    .btn-danger:hover,
-    .btn-success:hover,
-    .btn-sm:hover {
-        filter: brightness(1.1);
     }
 
     .btn:active,
@@ -355,6 +324,12 @@ $csrfToken = csrf_token();
         border: 1px solid rgba(231, 76, 60, 0.4);
     }
 
+    .status-pending {
+        background: rgba(255, 215, 0, 0.12);
+        color: #ffd700;
+        border: 1px solid rgba(255, 215, 0, 0.4);
+    }
+
     .status-finalist {
         background: rgba(245, 166, 35, 0.15);
         color: #f5a623;
@@ -399,12 +374,6 @@ $csrfToken = csrf_token();
         font-weight: 800;
         font-size: 1.05rem;
         cursor: pointer;
-        transition: background 0.15s ease, transform 0.05s ease;
-    }
-
-    .board-cell:hover {
-        background: #1a3a8f;
-        transform: translateY(-2px);
     }
 
     .board-cell.used {
@@ -414,16 +383,17 @@ $csrfToken = csrf_token();
         color: transparent;
     }
 
-    .board-cell.used:hover {
-        transform: none;
+    .raise-host-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 16px;
     }
 
     .raise-host-panel {
         background: #0a1440;
         border: 2px solid #ffd700;
         border-radius: 12px;
-        padding: 18px 20px;
-        margin-top: 16px;
+        padding: 16px 20px;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -648,6 +618,30 @@ function escapeHtml(s) {
 }
 
 let currentState = null;
+let lastRenderKey = null;
+
+function dashboardRenderKey(state) {
+    const ctf = state.phase === 'ctf' ? state.ctf : null;
+    return JSON.stringify({
+        phase: state.phase,
+        ctfId: ctf ? ctf.id : null,
+        promptVisible: ctf ? ctf.prompt_visible : null,
+        winnerId: ctf ? ctf.winner_team_id : null,
+        timeUp: ctf ? ctf.remaining <= 0 : null,
+        teamStates: (state.teams || []).map(t => `${t.id}:${t.status}`).join('|')
+    });
+}
+
+function updateCtfLiveFields(state) {
+    currentState = state;
+    const timer = document.getElementById('ctfTimer');
+    const submissions = document.getElementById('submissionsList');
+    if (!timer || !submissions || !state.ctf) return false;
+
+    timer.textContent = formatTime(state.ctf.remaining);
+    submissions.innerHTML = submissionsHtml(state.ctf.submissions);
+    return true;
+}
 
 window.addEventListener('storage', (event) => {
     if (event.key === 'webFeudHostAuthChanged') {
@@ -710,7 +704,7 @@ function boardGridHtml(categories) {
         categories.forEach(c => {
             const q = c.questions[r];
             if (!q) { html += '<div></div>'; return; }
-            html += `<div class="board-cell ${q.is_used ? 'used' : ''}" onclick="${q.is_used ? '' : `selectQuestion(${q.id})`}">${q.is_used ? '' : '₱' + q.points}</div>`;
+            html += `<div class="board-cell ${q.is_used ? 'used' : ''}" onclick="${q.is_used ? '' : `selectQuestion(${q.id})`}">${q.is_used ? '' : q.points + ' pts'}</div>`;
         });
     }
     html += '</div>';
@@ -718,14 +712,19 @@ function boardGridHtml(categories) {
 }
 
 function raisedHandHtml(state) {
-    const firstTeamName = state.raised_hand_team_name || '';
-    return `<div class="raise-host-panel">
-        <div>
-            <div class="raise-host-label">First raise</div>
-            <div class="muted">Visible to host during the elimination round.</div>
-        </div>
-        <div class="raise-host-team ${firstTeamName ? '' : 'empty'}">${firstTeamName ? escapeHtml(firstTeamName) : 'Waiting...'}</div>
-    </div>`;
+    const order = Array.isArray(state.raised_order) ? state.raised_order.slice(0, 6) : [];
+    const rankLabels = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth'];
+    const ranking = Array.from({ length: 6 }, (_, index) => {
+        const entry = order[index];
+        return `<div class="raise-host-panel">
+            <div>
+                <div class="raise-host-label">${rankLabels[index]} raise</div>
+                <div class="muted">Visible to host during the current round.</div>
+            </div>
+            <div class="raise-host-team ${entry ? '' : 'empty'}">${entry ? escapeHtml(entry.team_name) : 'Waiting...'}</div>
+        </div>`;
+    }).join('');
+    return `<div class="raise-host-list">${ranking}</div>`;
 }
 
 // Renders the list of flag attempts for the active CTF challenge, newest
@@ -735,15 +734,20 @@ function submissionsHtml(submissions) {
     if (!submissions || !submissions.length) {
         return `<p class="submission-empty">No flag submissions yet.</p>`;
     }
-    return submissions.map(s => `
-        <div class="submission-row">
-            <div>
-                <span class="team-name">${escapeHtml(s.team_name)}</span>
-                <span class="status-tag ${s.is_correct ? 'status-active' : 'status-eliminated'}">${s.is_correct ? 'Correct' : 'Wrong'}</span>
+    return submissions.map(s => {
+        const pending = s.is_correct === null;
+        const statusClass = pending ? 'status-pending' : (s.is_correct ? 'status-active' : 'status-eliminated');
+        const statusLabel = pending ? 'Pending' : (s.is_correct ? 'Correct' : 'Wrong');
+        return `
+            <div class="submission-row">
+                <div>
+                    <span class="team-name">${escapeHtml(s.team_name)}</span>
+                    <span class="status-tag ${statusClass}">${statusLabel}</span>
+                </div>
+                <div class="submitted-flag">${escapeHtml(s.flag)}</div>
             </div>
-            <div class="submitted-flag">${escapeHtml(s.flag)}</div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function render(state) {
@@ -771,10 +775,11 @@ function render(state) {
         if (state.current_question) {
             const q = state.current_question;
             html += `<div class="card">
-                <h2>Question for ₱${q.points}</h2>
+                <h2>Question for ${q.points} pts</h2>
                 ${!q.question_visible ? `<button class="btn-primary" onclick="revealQuestion()">Reveal question on board</button>` : `
                     <p><strong>Q:</strong> ${escapeHtml(state._questionText || '')}</p>
-                    ${!q.answer_visible ? `<button class="btn-warning" onclick="revealAnswer()">Reveal answer</button>` : `<p class="muted">Answer: ${escapeHtml(q.answer || '')}</p>`}
+                    <p class="muted"><strong>Host answer:</strong> ${escapeHtml(q.answer || '')}</p>
+                    ${!q.answer_visible ? `<button class="btn-warning" onclick="revealAnswer()">Show answer on Main Dashboard</button>` : `<p class="status-tag status-active">Answer is visible on Main Dashboard</p>`}
                     <h3>Which team answered correctly?</h3>
                     ${judgeButtonsHtml(state.teams)}
                     <button class="btn-sm" onclick="judge(0, 'close')">No correct answer / close question</button>
@@ -786,33 +791,21 @@ function render(state) {
         }
     }
 
-    if (state.phase === 'final_wager') {
-        const finalists = state.teams.filter(t => t.status === 'finalist');
-        html += `<div class="card"><h2>Last 2 standing: wagers</h2>
-            <p class="muted">Enter each finalist's secret wager (kept off the Main Board).</p>`;
-        finalists.forEach(t => {
-            const w = (state.final.wagers.find(w => w.team_id === t.id) || {}).wager ?? 0;
-            html += `<div class="wager-row">
-                <span class="team-name">${escapeHtml(t.name)} (score: ${t.score})</span>
-                <input type="number" min="0" max="${t.score}" value="${w}" id="wager_${t.id}">
-                <button class="btn-sm" onclick="setWager(${t.id})">Save wager</button>
-            </div>`;
-        });
-        html += `<button class="btn-primary" onclick="revealFinalQuestion()">Reveal final question on board</button></div>`;
-    }
-
     if (state.phase === 'final_question' || state.phase === 'final_reveal') {
         const finalists = state.teams.filter(t => t.status === 'finalist');
         html += `<div class="card"><h2>Final Jeopardy question</h2>
             <p>${escapeHtml(state.final.question || '')}</p>
-            <p class="muted">Answer: ${escapeHtml(state.final.answer || '(hidden until graded)')}</p>`;
+            <p class="muted"><strong>Host answer:</strong> ${escapeHtml(state.final.answer || '')}</p>
+            ${state.phase === 'final_question' ? `<button class="btn-warning" onclick="revealFinalAnswer()">Show answer on Main Dashboard</button>` : `<p class="status-tag status-active">Answer is visible on Main Dashboard</p>`}
+            ${raisedHandHtml(state)}`;
         finalists.forEach(t => {
             const w = state.final.wagers.find(w => w.team_id === t.id) || {};
+            const gradingDisabled = state.phase !== 'final_reveal' || w.answered_correct !== null;
             html += `<div class="team-row">
-                <span class="team-name">${escapeHtml(t.name)} (wagered ${w.wager})</span>
+                <span class="team-name">${escapeHtml(t.name)}</span>
                 <div>
-                    <button class="btn-sm btn-success" onclick="gradeFinal(${t.id}, true)" ${w.answered_correct !== null ? 'disabled' : ''}>Correct</button>
-                    <button class="btn-sm btn-danger" onclick="gradeFinal(${t.id}, false)" ${w.answered_correct !== null ? 'disabled' : ''}>Wrong</button>
+                    <button class="btn-sm btn-success" onclick="gradeFinal(${t.id}, true)" ${gradingDisabled ? 'disabled' : ''}>Correct</button>
+                    <button class="btn-sm btn-danger" onclick="gradeFinal(${t.id}, false)" ${gradingDisabled ? 'disabled' : ''}>Wrong</button>
                 </div>
             </div>`;
         });
@@ -824,7 +817,7 @@ function render(state) {
         const timeUp = c.remaining <= 0 && !c.winner_team_id;
         html += `<div class="card">
             <h2>CTF resolution: ${escapeHtml(c.title)} <span class="muted" style="font-size:0.9rem;">(Round ${c.round})</span></h2>
-            <div class="timer">${formatTime(c.remaining)}</div>
+            <div class="timer" id="ctfTimer">${formatTime(c.remaining)}</div>
             ${c.prompt_visible ? `
                 <div class="ctf-prompt">${escapeHtml(c.prompt)}</div>
             ` : `
@@ -832,6 +825,10 @@ function render(state) {
                 <button class="btn-primary" onclick="revealCipher()">Reveal cipher</button>
             `}
             <p class="muted"><strong>Host hint:</strong> ${escapeHtml(c.hint || '')}</p>
+            <button type="button" class="btn-warning" onclick="toggleCtfAnswer()">Show/Hide Answer</button>
+            <div id="ctfAnswer" class="ctf-prompt" style="display:none;">
+                <strong>Answer:</strong> ${escapeHtml(c.answer || 'Answer unavailable for this legacy challenge.')}
+            </div>
             <p class="muted">Waiting for both finalists to submit. A winner is declared only when one team is correct and the other is not.</p>
 
             ${timeUp ? `
@@ -872,8 +869,8 @@ function render(state) {
         html += `<button class="btn-primary" ${state.teams.length < 3 ? 'disabled' : ''} onclick="startGame()">Start elimination round</button>`;
     }
     if (state.phase === 'elimination') {
-        const activeCount = state.teams.filter(t => t.status === 'active').length;
-        html += `<button class="btn-primary" ${activeCount < 2 ? 'disabled' : ''} onclick="startFinal()">Advance to Last 2 Standing</button>`;
+        html += `<p class="muted">The two active teams with the highest scores will advance.</p>`;
+        html += `<button class="btn-primary" onclick="startFinal()">Advance to Last 2 Standing</button>`;
     }
     html += `<br><br><button class="btn-danger btn-sm" onclick="resetGame()">Reset entire game</button>`;
     html += `</div>`;
@@ -895,6 +892,11 @@ function scrollToSubmissions() {
     heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
     heading.classList.add('submissions-flash');
     setTimeout(() => heading.classList.remove('submissions-flash'), 1200);
+}
+
+function toggleCtfAnswer() {
+    const answer = document.getElementById('ctfAnswer');
+    if (answer) answer.style.display = answer.style.display === 'none' ? 'block' : 'none';
 }
 
 function hostSwalOptions(options = {}) {
@@ -993,12 +995,6 @@ async function revealQuestion() { if (await runHostAction('reveal_question', {},
 async function revealAnswer() { if (await runHostAction('reveal_answer', {}, 'Unable to reveal answer')) loop(); }
 async function judge(teamId, result) { if (await runHostAction('judge', { team_id: teamId, result }, 'Unable to judge answer')) loop(); }
 async function startFinal() { if (await runHostAction('start_final', {}, 'Unable to start final round')) loop(); }
-async function setWager(teamId) {
-    const wager = document.getElementById('wager_' + teamId).value;
-    const result = await api('set_wager', { team_id: teamId, wager });
-    if (!result.ok) showHostAlert('Unable to save wager', result.error || 'Please try again.');
-    loop();
-}
 async function revealCipher() {
     const result = await api('start_cipher');
     if (!result.ok) showHostAlert('Unable to reveal cipher', result.error || 'Please try again.');
@@ -1010,6 +1006,7 @@ async function nextCtfRound() {
     loop();
 }
 async function revealFinalQuestion() { if (await runHostAction('reveal_final_question', {}, 'Unable to reveal final question')) loop(); }
+async function revealFinalAnswer() { if (await runHostAction('reveal_final_answer', {}, 'Unable to reveal final answer')) loop(); }
 async function gradeFinal(teamId, correct) { if (await runHostAction('grade_final', { team_id: teamId, correct: correct ? 1 : 0 }, 'Unable to grade final answer')) loop(); }
 async function declareWinner(teamId) {
     const result = await Swal.fire(hostSwalOptions({
@@ -1049,7 +1046,15 @@ async function loop() {
         if (state) {
             consecutivePollFailures = 0;
             if (state.current_question) state._questionText = state.current_question.question;
-            render(state);
+            const renderKey = dashboardRenderKey(state);
+            const updatedLiveFields = state.phase === 'ctf'
+                && renderKey === lastRenderKey
+                && updateCtfLiveFields(state);
+
+            if (!updatedLiveFields) {
+                render(state);
+                lastRenderKey = renderKey;
+            }
         }
     } catch (e) {
         consecutivePollFailures++;

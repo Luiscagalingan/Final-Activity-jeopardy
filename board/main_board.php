@@ -101,14 +101,7 @@ $csrfToken = csrf_token();
         border-radius: 999px;
         border: 1px solid rgba(255, 215, 0, 0.5);
         background: rgba(255, 215, 0, 0.1);
-        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
         white-space: nowrap;
-    }
-
-    .logout-link:hover {
-        background: rgba(255, 215, 0, 0.22);
-        border-color: #ffd700;
-        color: #fff4b8;
     }
 
     .ctf-submit-link {
@@ -124,12 +117,6 @@ $csrfToken = csrf_token();
         white-space: nowrap;
         box-shadow: 0 0 12px rgba(255, 215, 0, 0.6);
         animation: ctf-pulse 1.6s ease-in-out infinite;
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
-    }
-
-    .ctf-submit-link:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 0 18px rgba(255, 215, 0, 0.85);
     }
 
     .ctf-submit-link.show {
@@ -274,13 +261,7 @@ $csrfToken = csrf_token();
         font-size: 1rem;
         font-weight: 900;
         cursor: pointer;
-        transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
         box-shadow: 0 0 14px rgba(255, 215, 0, 0.45);
-    }
-
-    .raise-btn:hover:not(:disabled) {
-        transform: translateY(-1px);
-        box-shadow: 0 0 20px rgba(255, 215, 0, 0.75);
     }
 
     .raise-btn:disabled {
@@ -296,6 +277,14 @@ $csrfToken = csrf_token();
         min-height: 20px;
         text-align: right;
     }
+
+    .raise-order { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; text-align: left; }
+    .raise-order-item { padding: 6px 8px; border: 1px solid rgba(255, 215, 0, 0.25); border-radius: 8px; color: #e2e8f0; font-size: 0.78rem; }
+    .wrong-feedback { position: fixed; inset: 0; z-index: 9999; display: none; place-items: center; background: rgba(30, 0, 0, 0.55); pointer-events: none; }
+    .wrong-feedback.show { display: grid; }
+    .wrong-feedback-content { text-align: center; }
+    .wrong-feedback-mark { color: #ef4444; font-size: clamp(9rem, 28vw, 20rem); font-weight: 1000; line-height: 0.8; text-shadow: 0 0 35px rgba(239, 68, 68, 0.9); }
+    .wrong-feedback-team { margin-top: 24px; color: #fff; font-size: clamp(2rem, 6vw, 4.5rem); font-weight: 1000; text-transform: uppercase; text-shadow: 0 3px 12px #000; }
 
     /* Board grid (elimination round) */
     .board-grid {
@@ -436,6 +425,29 @@ $csrfToken = csrf_token();
         word-break: break-word;
     }
 
+    .ctf-tool-guide {
+        margin: 20px auto 10px;
+        padding: 14px 18px;
+        max-width: 900px;
+        border: 1px solid rgba(255, 215, 0, 0.35);
+        border-radius: 10px;
+        background: rgba(255, 215, 0, 0.07);
+        color: #dbe4ff;
+        line-height: 1.5;
+    }
+
+    .ctf-tool-link {
+        display: inline-block;
+        margin-top: 10px;
+        padding: 9px 16px;
+        border: 1px solid #ffd700;
+        border-radius: 999px;
+        background: #ffd700;
+        color: #0d1b4c;
+        font-weight: 800;
+        text-decoration: none;
+    }
+
     .muted {
         color: #8a94b8;
     }
@@ -497,6 +509,7 @@ $csrfToken = csrf_token();
 </style>
 </head>
 <body class="board-page">
+    <div class="wrong-feedback" id="wrongFeedback"><div class="wrong-feedback-content"><div class="wrong-feedback-mark">X</div><div class="wrong-feedback-team" id="wrongFeedbackTeam">WRONG</div></div></div>
     <div class="board-header">
         <div class="team-badge"><?php echo htmlspecialchars($viewerLabel); ?></div>
         <div class="board-header-content">
@@ -523,6 +536,8 @@ const CATEGORY_COLORS = ['','',''];
 let raisePending = false;
 let raiseStatusText = '';
 let raiseStatusQuestionKey = null;
+let lastFeedbackNonce = null;
+let wrongFeedbackTimer = null;
 let lastHostAuthSignal = localStorage.getItem('webFeudHostAuthChanged') || '';
 let pollTimer = null;
 let polling = false;
@@ -582,7 +597,9 @@ function escapeHtml(s) {
 
 function render(state) {
     if (!state) return;
-    const activeQuestionKey = state.current_question ? String(state.current_question.id) : null;
+    const activeQuestionKey = state.phase === 'elimination'
+        ? 'elimination'
+        : (['final_question', 'final_reveal'].includes(state.phase) ? 'final_question' : null);
     if (activeQuestionKey !== raiseStatusQuestionKey) {
         raiseStatusQuestionKey = activeQuestionKey;
         raiseStatusText = '';
@@ -590,6 +607,7 @@ function render(state) {
 
     document.getElementById('phasePill').textContent = state.phase.replace('_', ' ');
     document.getElementById('messageLine').textContent = state.message || '';
+    handleFeedback(state);
 
     const myTeam = state.teams.find(t => t.id === myTeamId);
     const isEliminated = !!myTeam && myTeam.status === 'eliminated';
@@ -623,20 +641,16 @@ function render(state) {
         html += scoreboardHtml(state.teams);
     }
 
-    if (state.phase === 'final_wager') {
-        html += `<div class="card"><h2>Last 2 Standing</h2>
-            <p class="muted">Finalists are secretly wagering points on the Final Jeopardy question.</p></div>`;
-        html += scoreboardHtml(state.teams.filter(t => t.status === 'finalist'));
-    }
-
     if (state.phase === 'final_question') {
         html += `<div class="question-panel">${escapeHtml(state.final.question || '')}</div>`;
+        html += raisePanelHtml(state, myTeam);
         html += scoreboardHtml(state.teams.filter(t => t.status === 'finalist' || t.status === 'winner'));
     }
 
     if (state.phase === 'final_reveal') {
         html += `<div class="question-panel">${escapeHtml(state.final.question || '')}</div>`;
         html += `<div class="question-panel answer-panel">Answer: ${escapeHtml(state.final.answer || '')}</div>`;
+        html += raisePanelHtml(state, myTeam);
         html += scoreboardHtml(state.teams.filter(t => t.status === 'finalist' || t.status === 'winner'));
     }
 
@@ -646,6 +660,10 @@ function render(state) {
             <h2>CTF Resolution: ${escapeHtml(c.title)}${c.round ? ` <span class="muted" style="font-size:1rem;">(Round ${c.round})</span>` : ''}</h2>
             <div class="timer">${formatTime(c.remaining)}</div>
             ${c.prompt_visible ? `<div class="ctf-prompt">${escapeHtml(c.prompt)}</div>` : `<div class="ctf-prompt muted">The cipher is hidden until the host reveals it.</div>`}
+            <div class="ctf-tool-guide">
+                Use the <strong>CTF Cipher Lab</strong> to decode or analyze the cipher shown in this challenge. Select the appropriate cipher or encoding method, enter the given text, and use the generated result to identify the correct flag.
+                <br><a class="ctf-tool-link" href="../ctf-cipher-tool/index.html" target="_blank" rel="noopener noreferrer">Open CTF Cipher Lab</a>
+            </div>
             <p class="muted">Finalists: submit your flag from the Team Submission page on your device.</p>
         </div>`;
         html += scoreboardHtml(state.teams.filter(t => t.status === 'finalist' || t.status === 'winner'));
@@ -660,26 +678,28 @@ function render(state) {
 }
 
 function raisePanelHtml(state, myTeam) {
-    const firstTeamName = state.raised_hand_team_name || '';
+    const order = Array.isArray(state.raised_order) ? state.raised_order.slice(0, 6) : [];
     const raisedTeams = Array.isArray(state.raised_teams) ? state.raised_teams.map(Number) : [];
     const alreadyRaised = raisedTeams.includes(Number(myTeamId));
     const questionVisible = !!state.current_question && state.current_question.question_visible;
+    const isFinalRaise = ['final_question', 'final_reveal'].includes(state.phase);
+    const eligibleStatus = isFinalRaise ? 'finalist' : 'active';
     const canRaise = !!myTeam
-        && myTeam.status === 'active'
-        && !state.raised_hand_team_id
+        && myTeam.status === eligibleStatus
         && !alreadyRaised
         && !raisePending
-        && !questionVisible;
-    const buttonText = raisePending ? 'Raising...' : alreadyRaised ? 'Raised' : state.raised_hand_team_id ? 'Locked' : 'Raise';
-    const status = firstTeamName
-        ? `${escapeHtml(firstTeamName)} raised first`
-        : (raiseStatusText || 'First team to click appears here.');
+        && (isFinalRaise || !questionVisible);
+    const buttonText = raisePending ? 'Raising...' : alreadyRaised ? 'Raised' : 'Raise Hand';
+    const ordinal = n => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
+    const orderHtml = Array.from({ length: 6 }, (_, index) => {
+        const entry = order[index];
+        return `<div class="raise-order-item"><strong>${ordinal(index + 1)}:</strong> ${entry ? escapeHtml(entry.team_name) : '—'}</div>`;
+    }).join('');
 
     return `<div class="raise-panel">
-        <h2>First Raise</h2>
-        <div class="raised-team-name">${firstTeamName ? escapeHtml(firstTeamName) : '<span class="muted">Waiting...</span>'}</div>
+        <div><h2>Raise Hand Order</h2><div class="raise-status">${raiseStatusText || 'Ranks update as teams raise.'}</div></div>
+        <div class="raise-order">${orderHtml}</div>
         <button type="button" class="raise-btn" onclick="raiseHand()" ${canRaise ? '' : 'disabled'}>${buttonText}</button>
-        <div class="raise-status">${status}</div>
     </div>`;
 }
 
@@ -687,7 +707,10 @@ async function raiseHand() {
     if (raisePending) return;
 
     const state = await fetchState();
-    if (!state || state.phase !== 'elimination' || (state.current_question && state.current_question.question_visible)) {
+    const finalRaise = state && ['final_question', 'final_reveal'].includes(state.phase);
+    const eliminationRaise = state && state.phase === 'elimination'
+        && !(state.current_question && state.current_question.question_visible);
+    if (!finalRaise && !eliminationRaise) {
         raiseStatusText = 'No active raise window yet.';
         loop();
         return;
@@ -701,12 +724,13 @@ async function raiseHand() {
         const data = await fetchJson('../api/raise_hand.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-            body: JSON.stringify({ question_key: 'elimination' })
+            body: JSON.stringify({ question_key: finalRaise ? 'final_question' : 'elimination' })
         });
         if (!data) return;
-        raiseStatusText = data.success
-            ? 'You raised first!'
-            : (data.first_team_name ? `${data.first_team_name} raised first.` : (data.error || 'Raise was not recorded.'));
+        const suffix = data.position === 1 ? 'st' : data.position === 2 ? 'nd' : data.position === 3 ? 'rd' : 'th';
+        raiseStatusText = data.already_raised
+            ? 'Your team already raised.'
+            : `Your team is ${data.position}${suffix}.`;
     } catch (e) {
         raiseStatusText = 'Could not raise. Please try again.';
     } finally {
@@ -721,6 +745,40 @@ function formatTime(sec) {
     return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+function handleFeedback(state) {
+    const nonce = Number(state.feedback_nonce || 0);
+    if (lastFeedbackNonce === null) {
+        lastFeedbackNonce = nonce;
+        return;
+    }
+    if (!nonce || nonce === lastFeedbackNonce) return;
+    lastFeedbackNonce = nonce;
+    if (state.feedback_type !== 'wrong') return;
+
+    const overlay = document.getElementById('wrongFeedback');
+    const teamLabel = document.getElementById('wrongFeedbackTeam');
+    teamLabel.textContent = state.feedback_team_name
+        ? `${state.feedback_team_name} — WRONG`
+        : 'WRONG';
+    overlay.classList.add('show');
+    clearTimeout(wrongFeedbackTimer);
+    wrongFeedbackTimer = setTimeout(() => overlay.classList.remove('show'), 1100);
+
+    try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        const audio = new AudioContextClass();
+        const oscillator = audio.createOscillator();
+        const gain = audio.createGain();
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.setValueAtTime(160, audio.currentTime);
+        gain.gain.setValueAtTime(0.18, audio.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.65);
+        oscillator.connect(gain).connect(audio.destination);
+        oscillator.start();
+        oscillator.stop(audio.currentTime + 0.65);
+    } catch (e) {}
+}
+
 function boardGridHtml(categories) {
     if (!categories || !categories.length) return '';
     const rows = Math.max(...categories.map(c => c.questions.length));
@@ -730,7 +788,7 @@ function boardGridHtml(categories) {
         categories.forEach(c => {
             const q = c.questions[r];
             if (!q) { html += '<div></div>'; return; }
-            html += `<div class="board-cell ${q.is_used ? 'used' : ''}">${q.is_used ? '' : '₱' + q.points}</div>`;
+            html += `<div class="board-cell ${q.is_used ? 'used' : ''}">${q.is_used ? '' : q.points + ' pts'}</div>`;
         });
     }
     html += '</div>';

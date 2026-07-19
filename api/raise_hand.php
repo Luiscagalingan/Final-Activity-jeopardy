@@ -50,16 +50,17 @@ $team = get_team($teamId);
 $teamName = $team['name'] ?? $sessionTeamName;
 
 $gameState = get_state();
-if (($gameState['phase'] ?? '') !== 'elimination') {
-    json_response(['success' => false, 'error' => 'The game is not in the elimination round.'], 400);
-}
-if ($questionKey !== 'elimination') {
+$phase = $gameState['phase'] ?? '';
+$isEliminationRaise = $phase === 'elimination' && $questionKey === 'elimination';
+$isFinalRaise = in_array($phase, ['final_question', 'final_reveal'], true) && $questionKey === 'final_question';
+if (!$isEliminationRaise && !$isFinalRaise) {
     json_response(['success' => false, 'error' => 'This is not the active raise window.'], 400);
 }
-if (!empty($gameState['question_visible'])) {
+if ($isEliminationRaise && !empty($gameState['question_visible'])) {
     json_response(['success' => false, 'error' => 'Raising is closed for this question.'], 400);
 }
-if (!$team || $team['status'] !== 'active') {
+$eligibleStatus = $isFinalRaise ? 'finalist' : 'active';
+if (!$team || $team['status'] !== $eligibleStatus) {
     json_response(['success' => false, 'error' => 'Your team is not eligible to raise.'], 400);
 }
 
@@ -89,6 +90,7 @@ if ($isNewQuestion) {
         'first_team_name' => null,
         'raised_at'       => null,
         'raised_teams'    => [],
+        'raised_order'    => [],
     ];
 }
 
@@ -96,6 +98,11 @@ $alreadyRaisedByThisTeam = in_array($teamId, $state['raised_teams'], true);
 
 if (!$alreadyRaisedByThisTeam) {
     $state['raised_teams'][] = $teamId;
+    $state['raised_order'][] = [
+        'team_id' => $teamId,
+        'team_name' => $teamName,
+        'raised_at' => microtime(true),
+    ];
 }
 
 $wonTheBuzz = false;
@@ -121,4 +128,6 @@ json_response([
     'first_team_name' => $state['first_team_name'],
     'raised_at'       => $state['raised_at'],
     'raised_teams'    => $state['raised_teams'],
+    'raised_order'    => array_slice($state['raised_order'] ?? [], 0, 6),
+    'position'        => array_search($teamId, $state['raised_teams'], true) + 1,
 ]);

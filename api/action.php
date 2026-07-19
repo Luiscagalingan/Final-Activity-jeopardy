@@ -12,8 +12,8 @@ $action = $_POST['action'] ?? '';
 // EXCEPT submit_flag, which finalist teams call from their own device.
 $hostOnlyActions = [
     'add_team', 'remove_team', 'start_game', 'select_question', 'reveal_question',
-    'reveal_answer', 'judge', 'eliminate', 'reinstate', 'start_final', 'set_wager',
-    'reveal_final_question', 'grade_final', 'start_ctf', 'start_cipher', 'next_ctf_round',
+    'reveal_answer', 'judge', 'eliminate', 'reinstate', 'start_final',
+    'reveal_final_question', 'reveal_final_answer', 'grade_final', 'start_ctf', 'start_cipher', 'next_ctf_round',
     'declare_winner', 'reset_game',
 ];
 
@@ -57,7 +57,9 @@ function begin_ctf_round(array $ctf, string $message): void {
     update_state([
         'phase'              => 'ctf',
         'active_ctf_id'      => $ctf['id'],
-        'ctf_start_time'     => date('Y-m-d H:i:s'),
+        // Keep the full duration available while the cipher is hidden.
+        // The timer starts only when the host reveals the cipher.
+        'ctf_start_time'     => null,
         'ctf_prompt_visible' => 0,
         'ctf_winner_team_id' => null,
         'message'            => $message,
@@ -65,7 +67,6 @@ function begin_ctf_round(array $ctf, string $message): void {
 }
 
 function resolve_ctf_round_if_ready(int $ctfId): array {
-    $pdo = get_db();
     $competitors = get_ctf_competitors();
 
     if (count($competitors) < 2) {
@@ -79,42 +80,12 @@ function resolve_ctf_round_if_ready(int $ctfId): array {
         }
     }
 
-    $teamA = $competitors[0];
-    $teamB = $competitors[1];
-    $aCorrect = (bool)$submissions[(int)$teamA['id']]['is_correct'];
-    $bCorrect = (bool)$submissions[(int)$teamB['id']]['is_correct'];
-
-    if ($aCorrect !== $bCorrect) {
-        $winner = $aCorrect ? $teamA : $teamB;
-        $loser = $aCorrect ? $teamB : $teamA;
-        $pdo->prepare("UPDATE teams SET status = 'winner' WHERE id = ?")->execute([$winner['id']]);
-        $pdo->prepare("UPDATE teams SET status = 'eliminated' WHERE id = ?")->execute([$loser['id']]);
-        update_state([
-            'phase'              => 'finished',
-            'ctf_winner_team_id' => $winner['id'],
-            'winner_team_id'     => $winner['id'],
-            'message'            => $winner['name'] . ' submitted the correct flag and wins the game!',
-        ]);
-        return ['resolved' => true, 'winner_team_id' => (int)$winner['id']];
-    }
-
-    $ctf = get_unused_ctf_challenge();
-    if (!$ctf) {
-        update_state([
-            'message' => $aCorrect
-                ? 'Both finalists submitted the correct flag. No unused CTF challenges remain, so the host must break the tie manually.'
-                : 'Both finalists missed the flag. No unused CTF challenges remain, so the host must break the tie manually.',
-        ]);
-        return ['resolved' => true, 'tied' => true, 'no_rounds_left' => true];
-    }
-
-    begin_ctf_round(
-        $ctf,
-        $aCorrect
-            ? 'Both finalists captured the flag. Starting another CTF round to break the tie.'
-            : 'Both finalists missed the flag. Starting another CTF round to break the tie.'
-    );
-    return ['resolved' => true, 'tied' => true, 'next_round' => true];
+    // Keep the CTF round visible after both submissions. The host reviews
+    // the revealed verdicts and manually declares the winner.
+    update_state([
+        'message' => 'Both finalists have submitted. Waiting for the host to review the answers and declare the winner.',
+    ]);
+    return ['resolved' => false, 'awaiting_host' => true];
 }
 
 switch ($action) {
@@ -178,14 +149,25 @@ switch ($action) {
         if (!$q) json_response(['error' => 'No active question'], 400);
 
         if ($teamId && in_array($result, ['correct', 'wrong'], true)) {
-            $delta = $result === 'correct' ? $q['points'] : -$q['points'];
+            // Wrong answers no longer deduct points; scores never go negative.
+            $delta = $result === 'correct' ? (int)$q['points'] : 0;
             $stmt = $pdo->prepare('UPDATE teams SET score = score + ? WHERE id = ?');
             $stmt->execute([$delta, $teamId]);
         }
 
-        clear_raise_hand_state();
+        if ($result === 'wrong') {
+            update_state([
+                'feedback_type'  => 'wrong',
+                'feedback_team_id' => $teamId ?: null,
+                'feedback_nonce' => (int)round(microtime(true) * 1000),
+            ]);
+        }
 
         if ($result === 'correct' || $result === 'close') {
+            // Preserve the 1st-6th raise order after a wrong answer so the
+            // host knows which team should answer next. Clear it only when
+            // the question is finished.
+            clear_raise_hand_state();
             $stmt = $pdo->prepare('UPDATE questions SET is_used = 1 WHERE id = ?');
             $stmt->execute([$q['id']]);
             update_state([
@@ -219,19 +201,16 @@ switch ($action) {
             "SELECT * FROM teams WHERE status = 'active' ORDER BY score DESC, id ASC"
         )->fetchAll();
 
-        if (count($teams) < 2) json_response(['error' => 'Need at least 2 active teams'], 400);
+        if (count($teams) < 2) json_response(['error' => 'At least 2 active teams are needed for Last 2 Standing'], 400);
 
         $finalists = array_slice($teams, 0, 2);
-        $rest = array_slice($teams, 2);
 
         foreach ($finalists as $t) {
             $stmt = $pdo->prepare("UPDATE teams SET status = 'finalist' WHERE id = ?");
             $stmt->execute([$t['id']]);
         }
-        foreach ($rest as $t) {
-            $stmt = $pdo->prepare("UPDATE teams SET status = 'eliminated' WHERE id = ?");
-            $stmt->execute([$t['id']]);
-        }
+        $stmt = $pdo->prepare("UPDATE teams SET status = 'eliminated' WHERE status = 'active' AND id NOT IN (?, ?)");
+        $stmt->execute([(int)$finalists[0]['id'], (int)$finalists[1]['id']]);
 
         $pdo->exec('DELETE FROM final_wagers');
         foreach ($finalists as $t) {
@@ -239,23 +218,13 @@ switch ($action) {
             $stmt->execute([$t['id']]);
         }
 
+        clear_raise_hand_state();
+
         update_state([
-            'phase'   => 'final_wager',
+            'phase'   => 'final_question',
             'message' => 'Last 2 Standing: ' . $finalists[0]['name'] . ' vs ' . $finalists[1]['name'],
         ]);
         json_response(['ok' => true, 'finalists' => $finalists]);
-        break;
-    }
-
-    case 'set_wager': {
-        $teamId = (int)$_POST['team_id'];
-        $wager = max(0, (int)$_POST['wager']);
-        $team = get_team($teamId);
-        if (!$team) json_response(['error' => 'Team not found'], 400);
-        $wager = min($wager, max(0, (int)$team['score'])); // can't wager more than current score
-        $stmt = $pdo->prepare('UPDATE final_wagers SET wager = ? WHERE team_id = ?');
-        $stmt->execute([$wager, $teamId]);
-        json_response(['ok' => true]);
         break;
     }
 
@@ -265,9 +234,23 @@ switch ($action) {
         break;
     }
 
+    case 'reveal_final_answer': {
+        $state = get_state();
+        if (!in_array($state['phase'], ['final_question', 'final_reveal'], true)) {
+            json_response(['error' => 'Last 2 Standing is not active'], 400);
+        }
+        update_state(['phase' => 'final_reveal']);
+        json_response(['ok' => true]);
+        break;
+    }
+
     case 'grade_final': {
         $teamId = (int)$_POST['team_id'];
         $correct = $_POST['correct'] === '1';
+        $state = get_state();
+        if ($state['phase'] !== 'final_reveal') {
+            json_response(['error' => 'Show the final answer on the Main Dashboard before grading finalists'], 400);
+        }
 
         $pdo->beginTransaction();
         try {
@@ -311,72 +294,17 @@ switch ($action) {
                 json_response(['ok' => true, 'pending' => true]);
             }
 
-            $correctFinalists = array_values(array_filter($finalists, static fn($f) => (int)$f['answered_correct'] === 1));
-
-            if (count($correctFinalists) === 1) {
-                $winner = $correctFinalists[0];
-                foreach ($finalists as $finalist) {
-                    if ((int)$finalist['team_id'] === (int)$winner['team_id']) {
-                        $pdo->prepare('UPDATE teams SET score = score + ?, status = ? WHERE id = ?')
-                            ->execute([(int)$finalist['wager'], 'winner', (int)$finalist['team_id']]);
-                    } else {
-                        $pdo->prepare("UPDATE teams SET status = 'eliminated' WHERE id = ?")
-                            ->execute([(int)$finalist['team_id']]);
-                    }
-                }
-                update_state([
-                    'phase'          => 'finished',
-                    'winner_team_id' => $winner['team_id'],
-                    'message'        => $winner['name'] . ' was the only correct finalist and wins the game!',
-                ]);
+            // Regardless of points or how many finalists answered correctly,
+            // both remaining finalists always advance to a CTF decider.
+            $ctf = get_unused_ctf_challenge();
+            if (!$ctf) {
+                update_state(['phase' => 'final_reveal', 'message' => 'Final answers recorded, but no unused CTF challenge remains.']);
                 $pdo->commit();
-                json_response(['ok' => true, 'resolved' => true, 'winner_team_id' => (int)$winner['team_id']]);
+                json_response(['ok' => true, 'resolved' => true, 'no_rounds_left' => true]);
             }
-
-            if (count($correctFinalists) === 2) {
-                foreach ($correctFinalists as $finalist) {
-                    $pdo->prepare('UPDATE teams SET score = score + ? WHERE id = ?')
-                        ->execute([(int)$finalist['wager'], (int)$finalist['team_id']]);
-                }
-
-                $scoredStmt = $pdo->query(
-                    'SELECT t.*
-                     FROM teams t
-                     JOIN final_wagers fw ON fw.team_id = t.id
-                     ORDER BY t.score DESC, t.id ASC
-                     FOR UPDATE'
-                );
-                $scoredFinalists = $scoredStmt->fetchAll();
-
-                if (count($scoredFinalists) >= 2 && (int)$scoredFinalists[0]['score'] === (int)$scoredFinalists[1]['score']) {
-                    $ctf = get_unused_ctf_challenge();
-                    if ($ctf) {
-                        $pdo->commit();
-                        begin_ctf_round($ctf, 'Both finalists were correct and remain tied. Resolve the winner with a live CTF challenge.');
-                        json_response(['ok' => true, 'resolved' => true, 'next_round' => true]);
-                    }
-
-                    update_state(['phase' => 'final_reveal', 'message' => 'Both finalists were correct and tied, but no CTF challenges remain. Host must break the tie manually.']);
-                    $pdo->commit();
-                    json_response(['ok' => true, 'resolved' => true, 'tied' => true, 'no_rounds_left' => true]);
-                }
-
-                $winner = $scoredFinalists[0];
-                $loser = $scoredFinalists[1];
-                $pdo->prepare("UPDATE teams SET status = 'winner' WHERE id = ?")->execute([(int)$winner['id']]);
-                $pdo->prepare("UPDATE teams SET status = 'eliminated' WHERE id = ?")->execute([(int)$loser['id']]);
-                update_state([
-                    'phase'          => 'finished',
-                    'winner_team_id' => $winner['id'],
-                    'message'        => $winner['name'] . ' wins after both finalists answered correctly!',
-                ]);
-                $pdo->commit();
-                json_response(['ok' => true, 'resolved' => true, 'winner_team_id' => (int)$winner['id']]);
-            }
-
-            update_state(['phase' => 'final_reveal', 'message' => 'Both finalists answered incorrectly. No points were awarded. Host must decide the next step.']);
             $pdo->commit();
-            json_response(['ok' => true, 'resolved' => true, 'both_wrong' => true]);
+            begin_ctf_round($ctf, 'Final answers recorded. The two finalists now proceed to the CTF challenge.');
+            json_response(['ok' => true, 'resolved' => true, 'next_round' => true]);
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
@@ -401,7 +329,14 @@ switch ($action) {
         if ($state['phase'] !== 'ctf' || !$state['active_ctf_id']) {
             json_response(['error' => 'No CTF challenge is currently active'], 400);
         }
-        update_state(['ctf_prompt_visible' => 1]);
+
+        // Do not let a repeated request restart an already-running timer.
+        if (empty($state['ctf_prompt_visible']) || empty($state['ctf_start_time'])) {
+            update_state([
+                'ctf_prompt_visible' => 1,
+                'ctf_start_time'     => date('Y-m-d H:i:s'),
+            ]);
+        }
         json_response(['ok' => true]);
         break;
     }
@@ -448,6 +383,9 @@ switch ($action) {
         if (empty($state['ctf_prompt_visible'])) {
             json_response(['error' => 'The host has not revealed the cipher yet.'], 400);
         }
+        if (empty($state['ctf_start_time'])) {
+            json_response(['error' => 'The CTF timer has not started yet.'], 400);
+        }
 
         $team = get_team($teamId);
         if (!$team || !in_array($team['status'], ['finalist', 'winner'], true)) {
@@ -492,6 +430,7 @@ switch ($action) {
             'ok'              => true,
             'submitted'       => true,
             'pending'         => !empty($resolution['waiting']),
+            'awaiting_host'   => !empty($resolution['awaiting_host']),
             'round_resolved'  => !empty($resolution['resolved']),
             'winner_team_id'  => $resolution['winner_team_id'] ?? null,
             'next_round'      => !empty($resolution['next_round']),
@@ -523,7 +462,8 @@ switch ($action) {
         update_state([
             'phase' => 'lobby', 'current_question_id' => null, 'question_visible' => 0,
             'answer_visible' => 0, 'active_ctf_id' => null, 'ctf_start_time' => null,
-            'ctf_prompt_visible' => 0, 'ctf_winner_team_id' => null, 'winner_team_id' => null, 'message' => null,
+            'ctf_prompt_visible' => 0, 'ctf_winner_team_id' => null, 'winner_team_id' => null,
+            'feedback_type' => null, 'feedback_team_id' => null, 'feedback_nonce' => 0, 'message' => null,
         ]);
         json_response(['ok' => true]);
         break;

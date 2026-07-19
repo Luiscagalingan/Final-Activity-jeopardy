@@ -82,11 +82,6 @@
         text-decoration: none;
         border: none;
         cursor: pointer;
-        transition: filter 0.15s ease, transform 0.05s ease;
-    }
-
-    .btn:hover {
-        filter: brightness(1.08);
     }
 
     .btn:active {
@@ -110,6 +105,7 @@
 </style>
 </head>
 <body>
+    <!-- FLAG{inspect_the_source} -->
     <div class="container" style="max-width: 1100px; text-align: center; display: flex; flex-direction: column; justify-content: center; min-height: 100vh; padding: 24px;">
         <div style="margin-bottom: 28px;">
             <img src="pictures/web%20feud.png" alt="Web Feud Logo" style="width: 180px; height: 180px; object-fit: cover; border-radius: 50%; border: 4px solid #f5c542; filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5)); margin-bottom: 18px;">
@@ -121,13 +117,13 @@
             <div class="card" style="margin-bottom: 0; display: flex; flex-direction: column;">
                 <h2>Main Board</h2>
                 <p class="muted" style="flex-grow: 1;">Players enter their name here first, then they can access the board.</p>
-                <a class="btn btn-primary" href="board/player_login.php" target="_blank" style="text-align: center; width: 100%;">Open Main Dashboard</a>
+                <a class="btn btn-primary" href="board/player_login.php" style="text-align: center; width: 100%;">Open Main Dashboard</a>
             </div>
 
             <div class="card" style="margin-bottom: 0; display: flex; flex-direction: column;">
                 <h2>Host Dashboard</h2>
                 <p class="muted" style="flex-grow: 1;">The host uses this screen to run the game (PIN protected).</p>
-                <a class="btn btn-warning" href="host/login.php" target="_blank" style="text-align: center; width: 100%;">Open Host Dashboard</a>
+                <a class="btn btn-warning" href="host/login.php" style="text-align: center; width: 100%;">Open Host Dashboard</a>
             </div>
         </div>
     </div>

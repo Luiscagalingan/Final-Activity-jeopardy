@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $title       = trim($_POST['title'] ?? '');
         $prompt      = trim($_POST['prompt'] ?? '');
         $hint        = trim($_POST['hint'] ?? '');
-        $duration    = (int)($_POST['duration_seconds'] ?? 180);
+        $duration    = (int)($_POST['duration_seconds'] ?? 420);
         $plainFlag   = $_POST['plain_flag'] ?? '';
 
         if ($plainFlag === '') {
@@ -51,10 +51,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($mode === 'create') {
                     $stmt = $pdo->prepare(
                         "INSERT INTO ctf_challenges
-                            (title, prompt, flag_hash, hint, duration_seconds, is_used)
-                         VALUES (?, ?, ?, ?, ?, 0)"
+                            (title, prompt, flag_hash, flag_answer, hint, duration_seconds, is_used)
+                         VALUES (?, ?, ?, ?, ?, ?, 0)"
                     );
-                    $stmt->execute([$title, $prompt, $generatedHash, $hint, $duration]);
+                    $stmt->execute([$title, $prompt, $generatedHash, $plainFlag, $hint, $duration]);
                     $newId = $pdo->lastInsertId();
                     $message = "New challenge created (id {$newId}) with a verified flag hash.";
                     $messageType = 'success';
@@ -66,10 +66,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } else {
                         $stmt = $pdo->prepare(
                             "UPDATE ctf_challenges
-                             SET title = ?, prompt = ?, flag_hash = ?, hint = ?, duration_seconds = ?
+                             SET title = ?, prompt = ?, flag_hash = ?, flag_answer = ?, hint = ?, duration_seconds = ?
                              WHERE id = ?"
                         );
-                        $stmt->execute([$title, $prompt, $generatedHash, $hint, $duration, $challengeId]);
+                        $stmt->execute([$title, $prompt, $generatedHash, $plainFlag, $hint, $duration, $challengeId]);
                         $message = "Challenge id {$challengeId} updated with a verified flag hash.";
                         $messageType = 'success';
                     }
@@ -119,7 +119,6 @@ $activeCtfId = $stateRow['active_ctf_id'] ?? null;
     }
     textarea { min-height: 70px; }
     button { margin-top:16px; padding:10px 18px; background:#4f7cff; border:none; border-radius:6px; color:#fff; cursor:pointer; font-weight:600; }
-    button:hover { background:#3d63d9; }
     .msg { padding:10px 14px; border-radius:6px; margin-bottom:16px; }
     .success { background:#123a24; border:1px solid #1f7a4d; color:#7be3a8; }
     .error { background:#3a1212; border:1px solid #7a1f1f; color:#e37b7b; }
@@ -180,7 +179,7 @@ $activeCtfId = $stateRow['active_ctf_id'] ?? null;
         <textarea name="hint" id="hint"></textarea>
 
         <label for="duration_seconds">Duration (seconds)</label>
-        <input type="number" name="duration_seconds" id="duration_seconds" value="180">
+        <input type="number" name="duration_seconds" id="duration_seconds" value="420">
 
         <label for="plain_flag">Plaintext flag (e.g. FLAG{SOMETHING})</label>
         <input type="text" name="plain_flag" id="plain_flag" required placeholder="FLAG{EXACT_ANSWER}">
@@ -213,7 +212,7 @@ function toggleMode(mode) {
         document.getElementById('title').value = '';
         document.getElementById('prompt').value = '';
         document.getElementById('hint').value = '';
-        document.getElementById('duration_seconds').value = 180;
+        document.getElementById('duration_seconds').value = 420;
         document.getElementById('plain_flag').value = '';
     }
 }
@@ -242,7 +241,7 @@ async function fillForm(id) {
         document.getElementById('title').value = data.title || '';
         document.getElementById('prompt').value = data.prompt || '';
         document.getElementById('hint').value = data.hint || '';
-        document.getElementById('duration_seconds').value = data.duration_seconds || 180;
+        document.getElementById('duration_seconds').value = data.duration_seconds || 420;
         document.getElementById('plain_flag').value = ''; // never pre-fill a flag, always re-type it
     } catch (e) {
         console.error('Could not load challenge data', e);

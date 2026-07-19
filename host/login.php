@@ -184,9 +184,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         transition: background 0.15s ease;
     }
 
-    .login-card button:hover {
-        background: #e6c200;
-    }
 </style>
 </head>
 <body class="login-page">

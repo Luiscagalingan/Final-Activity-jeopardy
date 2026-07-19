@@ -205,9 +205,6 @@ $teams = $pdo->query('SELECT id, name FROM teams ORDER BY display_order, id')->f
         transition: background 0.15s ease;
     }
 
-    .login-card button:hover {
-        background: #e6c200;
-    }
 </style>
 </head>
 <body class="login-page">
