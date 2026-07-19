@@ -103,10 +103,12 @@ CREATE TABLE flag_submissions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     ctf_id INT NOT NULL,
     team_id INT NOT NULL,
+    submitted_flag TEXT NOT NULL,
     is_correct TINYINT(1) NOT NULL,
     submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (ctf_id) REFERENCES ctf_challenges(id) ON DELETE CASCADE,
-    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_flag_submission_round_team (ctf_id, team_id)
 );
 
 -- ===========================================================
@@ -253,3 +255,25 @@ INSERT INTO ctf_challenges (title, prompt, flag_hash, hint, duration_seconds) VA
  'f01e17d1baf583556eedf9df2666fb8023690df3ff3900913e298c1716991e41',
  'Base64 alphabets only use A-Z, a-z, 0-9, +, / and pad with =.',
  180);
+
+ INSERT INTO ctf_challenges (title, prompt, flag_hash, hint, duration_seconds) VALUES
+('The Hex Dump',
+ 'An analyst found this string of hexadecimal values. Convert it back to text to find the flag:\n464c41477b6865785f6465636f6465725f77697a6172647d',
+ -- Flag: FLAG{hex_decoder_wizard}
+ 'ba4f509cc14f7b6058f480373df192931215b2e3db784eb63cfcd09a96245053',
+ 'Every pair of characters represents one ASCII byte in hexadecimal (Base 16). 46 is "F".',
+ 300),
+
+('The MD5 Collision',
+ 'We found a partial flag hash, but the system needs the raw plaintext. The original text was a 5-digit PIN that hashes to this MD5: 827ccb0eea8a706c4c34a16891f84e7b. Submit the flag in this format: FLAG{XXXXX}',
+ -- Flag: FLAG{12345}
+ '4f707f10b001a74d27161839e9a4f6cf8a5ec3a241cb0272b380f7d0c3f0987c',
+ 'This is a standard 5-digit number sequence (12345). You can use an online MD5 cracker or write a quick loop script.',
+ 300),
+
+('Binary Whispers',
+ 'A spy sent a secret key written purely in binary. Translate these 8-bit blocks into ASCII text:\n01000110 01001100 01000001 01000111 01111011 01100010 01101001 01101110 01100001 01110010 01111001 01011111 01100010 01101111 01110011 01110011 01111101',
+ -- Flag: FLAG{binary_boss}
+ '615539fa07e408d6a6f1947265f2122616f7347a507df7428f52f36d403986a7',
+ 'Each block of 8 bits represents a single character. Convert the binary to decimal, then check an ASCII table.',
+ 240);

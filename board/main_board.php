@@ -1,13 +1,20 @@
 <?php
 require_once __DIR__ . '/../includes/functions.php';
-host_require_login();
+board_require_player_or_host();
+
+$isPlayerView = is_player_logged_in();
+$viewerLabel = $isPlayerView
+    ? ('Team: ' . ($_SESSION['player_team_name'] ?? 'Unknown') . ' | ' . ($_SESSION['player_name'] ?? ''))
+    : 'Host board view';
+$logoutHref = $isPlayerView ? 'logout.php' : '../host/logout.php';
+$csrfToken = csrf_token();
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Host Dashboard - Web Feud</title>
+<title>Web Feud - Main Board</title>
 <link rel="stylesheet" href="../assets/css/style.css">
 <style>
     * {
@@ -20,7 +27,7 @@ host_require_login();
         min-height: 100vh;
     }
 
-    body {
+    body.board-page {
         font-family: 'Segoe UI', Arial, sans-serif;
         color: #e2e8f0;
         background: #0c1f5c !important;
@@ -30,7 +37,7 @@ host_require_login();
         position: relative;
     }
 
-    body::after {
+    body.board-page::after {
         content: "";
         position: fixed;
         inset: 0;
@@ -39,83 +46,138 @@ host_require_login();
         pointer-events: none;
     }
 
-    .topbar, .container {
+    .board-header, .container {
         position: relative;
         z-index: 5;
     }
 
-    .topbar {
-        display: flex;
+    .board-header {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
         align-items: center;
-        justify-content: space-between;
-        padding: 16px 28px;
+        padding: 20px 32px;
         background: #0d1b4c;
         border-bottom: 1px solid rgba(255, 215, 0, 0.4);
+        gap: 12px;
     }
 
-    .topbar strong {
+    .board-header .team-badge {
+        justify-self: start;
+    }
+
+    .header-right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        justify-self: end;
+    }
+
+    .team-badge {
+        background: rgba(255, 215, 0, 0.12);
+        border: 1px solid rgba(255, 215, 0, 0.5);
         color: #ffd700;
-        font-size: 1.05rem;
+        font-weight: 700;
+        font-size: 0.9rem;
+        padding: 8px 16px;
+        border-radius: 999px;
+        white-space: nowrap;
+    }
+
+    .player-name-sep {
+        opacity: 0.9;
+        margin: 0 6px;
+        font-size: 1.3rem;
+        font-weight: 900;
+        color: #ffd700;
+        vertical-align: middle;
+    }
+
+    .logout-link {
+        color: #ffd700;
+        text-decoration: none;
+        font-size: 0.85rem;
+        font-weight: 700;
+        padding: 8px 16px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 215, 0, 0.5);
+        background: rgba(255, 215, 0, 0.1);
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+        white-space: nowrap;
+    }
+
+    .logout-link:hover {
+        background: rgba(255, 215, 0, 0.22);
+        border-color: #ffd700;
+        color: #fff4b8;
+    }
+
+    .ctf-submit-link {
+        display: none;
+        color: #0d1b4c;
+        text-decoration: none;
+        font-size: 0.85rem;
+        font-weight: 800;
+        padding: 8px 16px;
+        border-radius: 999px;
+        border: 1px solid #ffd700;
+        background: #ffd700;
+        white-space: nowrap;
+        box-shadow: 0 0 12px rgba(255, 215, 0, 0.6);
+        animation: ctf-pulse 1.6s ease-in-out infinite;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .ctf-submit-link:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 0 18px rgba(255, 215, 0, 0.85);
+    }
+
+    .ctf-submit-link.show {
+        display: inline-block;
+    }
+
+    @keyframes ctf-pulse {
+        0%, 100% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
+        50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.9); }
+    }
+
+    .board-header-content {
+        text-align: center;
+        justify-self: center;
+    }
+
+    .board-header-content h1 {
+        color: #ffd700;
+        font-weight: 800;
+        font-size: 1.6rem;
+        margin: 4px 0;
         letter-spacing: 0.3px;
+        white-space: nowrap;
     }
 
     .phase-pill {
         display: inline-block;
-        margin-left: 10px;
-        padding: 4px 12px;
+        padding: 4px 14px;
         border-radius: 999px;
         background: rgba(255, 215, 0, 0.15);
         border: 1px solid rgba(255, 215, 0, 0.5);
         color: #ffd700;
-        font-size: 0.72rem;
+        font-size: 0.75rem;
         font-weight: 700;
         letter-spacing: 0.5px;
         text-transform: uppercase;
     }
 
-    .topbar a {
+    .board-header-content .muted {
         color: #b8c4e8;
-        text-decoration: none;
-        font-size: 0.9rem;
-        margin-left: 18px;
-        transition: filter 0.15s ease, color 0.15s ease, transform 0.05s ease;
-    }
-
-    .topbar a.btn {
-        background: #ffd700;
-        color: #1a1200;
-        padding: 9px 14px;
-    }
-
-    .topbar a.btn:hover {
-        filter: brightness(1.1);
-    }
-
-    .topbar a.btn:active {
-        transform: translateY(1px);
-    }
-
-    .topbar a.logout {
-        color: #fca5a5;
-        padding: 6px 10px;
-        border-radius: 8px;
-    }
-
-    .topbar a.logout:hover {
-        background: rgba(231, 76, 60, 0.15);
-        color: #ff8a8a;
+        margin: 6px 0 0;
+        font-size: 0.95rem;
     }
 
     .container {
-        max-width: 1300px;
+        max-width: 1200px;
         margin: 0 auto;
-        padding: 28px;
-    }
-
-    .grid-2 {
-        display: grid;
-        grid-template-columns: 2fr 1fr;
-        gap: 24px;
+        padding: 32px;
     }
 
     .card {
@@ -123,157 +185,192 @@ host_require_login();
         border: 1px solid rgba(255, 215, 0, 0.4);
         border-radius: 14px;
         box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
-        padding: 24px;
+        padding: 28px;
+        text-align: center;
         margin-bottom: 24px;
     }
 
     .card h2 {
         color: #ffd700;
-        font-size: 1.3rem;
-        margin: 0 0 14px;
+        font-size: 1.4rem;
+        margin: 0;
     }
 
-    .card h3 {
-        color: #ffd700;
-        font-size: 1.05rem;
-        margin: 18px 0 10px;
+    /* Circular logo shown during lobby */
+    .main-board-center-image {
+        text-align: center;
+        margin: 8px 0 28px;
     }
 
-    .muted {
-        color: #8a94b8;
+    .main-board-center-image img {
+        width: 180px;
+        height: 180px;
+        object-fit: cover;
+        border-radius: 50%;
+        border: 4px solid #ffd700;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
     }
 
-    .card p {
-        line-height: 1.5;
-    }
-
-    input[type="text"],
-    input[type="number"] {
-        width: 100%;
-        padding: 12px 14px;
-        border-radius: 10px;
-        border: 2px solid #2c4491;
-        background: #0a1440;
-        color: #f1f5ff;
-        font-size: 1rem;
-        outline: none;
-        margin-bottom: 10px;
-        transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    input[type="text"]:focus,
-    input[type="number"]:focus {
-        border-color: #ffd700;
-        box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.25);
-    }
-
-    input::placeholder {
-        color: #6b7ac0;
-    }
-
-    .btn,
-    .btn-primary,
-    .btn-warning,
-    .btn-danger,
-    .btn-success,
-    .btn-sm {
-        display: inline-block;
-        padding: 11px 16px;
-        border-radius: 10px;
+    /* Question / answer panels */
+    .question-panel {
+        background: #0d1b4c;
+        border: 1px solid rgba(255, 215, 0, 0.4);
+        border-radius: 14px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+        padding: 32px;
+        text-align: center;
+        font-size: 1.5rem;
         font-weight: 700;
-        font-size: 0.92rem;
-        letter-spacing: 0.3px;
-        text-decoration: none;
-        border: none;
-        cursor: pointer;
-        transition: filter 0.15s ease, transform 0.05s ease;
-    }
-
-    .btn:hover,
-    .btn-primary:hover,
-    .btn-warning:hover,
-    .btn-danger:hover,
-    .btn-success:hover,
-    .btn-sm:hover {
-        filter: brightness(1.1);
-    }
-
-    .btn:active,
-    .btn-primary:active,
-    .btn-warning:active,
-    .btn-danger:active,
-    .btn-success:active,
-    .btn-sm:active {
-        transform: translateY(1px);
-    }
-
-    .btn,
-    .btn-sm {
-        background: #2c4491;
         color: #f1f5ff;
+        margin-bottom: 20px;
     }
 
-    .btn-primary {
-        background: #ffd700;
-        color: #1a1200;
+    .question-panel.answer-panel {
+        background: #12235e;
+        color: #ffd700;
+        font-size: 1.3rem;
     }
 
-    .btn-warning {
-        background: #f5a623;
-        color: #1a1200;
+    .raise-panel {
+        background: #0d1b4c;
+        border: 1px solid rgba(255, 215, 0, 0.4);
+        border-radius: 14px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+        padding: 18px 22px;
+        text-align: center;
+        margin: -8px 0 24px;
+        display: grid;
+        grid-template-columns: minmax(170px, 1fr) minmax(180px, 260px) minmax(170px, 1fr);
+        gap: 16px;
+        align-items: center;
     }
 
-    .btn-danger {
-        background: #e74c3c;
-        color: #fff;
+    .raise-panel h2 {
+        color: #ffd700;
+        font-size: 1.1rem;
+        margin: 0;
+        text-align: left;
     }
 
-    .btn-success {
-        background: #2ecc71;
-        color: #06210f;
-    }
-
-    .btn-sm {
-        padding: 7px 12px;
-        font-size: 0.82rem;
-    }
-
-    .btn:disabled,
-    .btn-primary:disabled,
-    .btn-sm:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-        filter: none;
-    }
-
-    /* Team list */
-    .team-row {
+    .raised-team-name {
+        min-height: 46px;
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        background: #0a1440;
-        border: 1px solid #22306b;
-        border-radius: 10px;
-        padding: 12px 14px;
-        margin-bottom: 8px;
-    }
-
-    .team-name {
+        justify-content: center;
         color: #f1f5ff;
-        font-weight: 700;
-        margin-right: 10px;
+        font-size: 1.25rem;
+        font-weight: 800;
+        line-height: 1.2;
+        word-break: break-word;
     }
 
-    .team-score {
+    .raise-btn {
+        width: 100%;
+        min-height: 54px;
+        border: 1px solid #ffd700;
+        border-radius: 12px;
+        background: #ffd700;
+        color: #0d1b4c;
+        font-size: 1rem;
+        font-weight: 900;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+        box-shadow: 0 0 14px rgba(255, 215, 0, 0.45);
+    }
+
+    .raise-btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.75);
+    }
+
+    .raise-btn:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .raise-status {
+        color: #8a94b8;
+        font-size: 0.85rem;
+        min-height: 20px;
+        text-align: right;
+    }
+
+    /* Board grid (elimination round) */
+    .board-grid {
+        display: grid;
+        gap: 12px;
+        margin-bottom: 28px;
+    }
+
+    .board-col-header {
+        background: #0a1440;
+        border: 1px solid rgba(255, 215, 0, 0.35);
+        border-radius: 8px;
         color: #ffd700;
         font-weight: 700;
+        text-align: center;
+        padding: 14px 8px;
+        font-size: 1rem;
+        min-height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1.25;
+    }
+
+    .board-cell {
+        background: #12235e;
+        border: 1px solid #2c4491;
+        border-radius: 8px;
+        text-align: center;
+        padding: 26px 8px;
+        color: #ffd700;
+        font-weight: 800;
+        font-size: 1.2rem;
+    }
+
+    .board-cell.used {
+        background: transparent;
+        border: 1px dashed #2c4491;
+        color: transparent;
+    }
+
+    /* Scoreboard */
+    .scoreboard {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 14px;
+    }
+
+    .score-card {
+        background: #0d1b4c;
+        border: 1px solid rgba(255, 215, 0, 0.35);
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+    }
+
+    .score-card .name {
+        color: #f1f5ff;
+        font-weight: 700;
+        margin-bottom: 8px;
+        font-size: 0.95rem;
+    }
+
+    .score-card .pts {
+        color: #ffd700;
+        font-weight: 800;
+        font-size: 1.6rem;
     }
 
     .status-tag {
         display: inline-block;
-        padding: 3px 10px;
+        margin: 2px 0 8px;
+        padding: 2px 9px;
         border-radius: 999px;
-        font-size: 0.7rem;
+        font-size: 0.62rem;
         font-weight: 700;
         letter-spacing: 0.4px;
         text-transform: uppercase;
@@ -304,84 +401,26 @@ host_require_login();
         border: 1px solid rgba(255, 215, 0, 0.5);
     }
 
-    /* Board grid */
-    .board-grid {
-        display: grid;
-        gap: 10px;
-    }
-
-    .board-col-header {
-        background: #0a1440;
-        border: 1px solid rgba(255, 215, 0, 0.35);
-        border-radius: 8px;
-        color: #ffd700;
-        font-weight: 700;
+    /* CTF panel */
+    .ctf-panel {
+        background: #0d1b4c;
+        border: 1px solid rgba(255, 215, 0, 0.4);
+        border-radius: 14px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+        padding: 28px;
         text-align: center;
-        padding: 12px 6px;
-        font-size: 0.9rem;
-        min-height: 58px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        line-height: 1.25;
+        margin-bottom: 24px;
     }
 
-    .board-cell {
-        background: #12235e;
-        border: 1px solid #2c4491;
-        border-radius: 8px;
-        text-align: center;
-        padding: 20px 6px;
+    .ctf-panel h2 {
         color: #ffd700;
-        font-weight: 800;
-        font-size: 1.05rem;
-        cursor: pointer;
-        transition: background 0.15s ease, transform 0.05s ease;
+        margin: 0 0 10px;
     }
 
-    .board-cell:hover {
-        background: #1a3a8f;
-        transform: translateY(-2px);
-    }
-
-    .board-cell.used {
-        background: transparent;
-        border: 1px dashed #2c4491;
-        cursor: default;
-        color: transparent;
-    }
-
-    .board-cell.used:hover {
-        transform: none;
-    }
-
-    /* Wagers */
-    .wager-row {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        background: #0a1440;
-        border: 1px solid #22306b;
-        border-radius: 10px;
-        padding: 10px 14px;
-        margin-bottom: 8px;
-    }
-
-    .wager-row .team-name {
-        flex: 1;
-    }
-
-    .wager-row input[type="number"] {
-        width: 110px;
-        margin-bottom: 0;
-    }
-
-    /* CTF / timer */
     .timer {
-        font-size: 2.4rem;
+        font-size: 2.6rem;
         font-weight: 800;
         color: #ffd700;
-        text-align: center;
         margin: 6px 0 16px;
         letter-spacing: 1px;
     }
@@ -390,215 +429,290 @@ host_require_login();
         background: #0a1440;
         border: 1px solid rgba(255, 215, 0, 0.3);
         border-radius: 10px;
-        padding: 14px;
+        padding: 16px;
         margin: 12px 0;
         font-family: 'Courier New', monospace;
         color: #ffd700;
         word-break: break-word;
     }
+
+    .muted {
+        color: #8a94b8;
+    }
+
+    .eliminated-banner {
+        display: none;
+        background: rgba(231, 76, 60, 0.12);
+        border: 1px solid rgba(231, 76, 60, 0.45);
+        color: #ff8a8a;
+        border-radius: 12px;
+        padding: 14px 20px;
+        text-align: center;
+        font-weight: 700;
+        font-size: 0.95rem;
+        margin-bottom: 20px;
+        letter-spacing: 0.2px;
+    }
+
+    .eliminated-banner.show {
+        display: block;
+    }
+
+    /* Winner banner */
+    .winner-banner {
+        background: linear-gradient(160deg, #12235e 0%, #0d1b4c 100%);
+        border: 1px solid #ffd700;
+        border-radius: 14px;
+        box-shadow: 0 0 30px rgba(255, 215, 0, 0.25), 0 12px 30px rgba(0, 0, 0, 0.5);
+        padding: 40px;
+        text-align: center;
+        font-size: 2rem;
+        font-weight: 800;
+        color: #ffd700;
+        margin-bottom: 24px;
+    }
+
+    @media (max-width: 700px) {
+        .board-header {
+            grid-template-columns: 1fr;
+            justify-items: center;
+            text-align: center;
+        }
+
+        .board-header .team-badge,
+        .header-right {
+            justify-self: center;
+        }
+
+        .raise-panel {
+            grid-template-columns: 1fr;
+            margin-top: 0;
+        }
+
+        .raise-panel h2,
+        .raise-status {
+            text-align: center;
+        }
+    }
 </style>
 </head>
-<body>
-    <div class="topbar">
-        <div><strong>Web Feud Host Dashboard</strong> <span class="phase-pill" id="phasePill">Loading...</span></div>
-        <div>
-            <a href="../board/main_board.php" target="_blank" class="btn btn-sm">Open Main Board</a>
-            <a href="../team/submit.php" target="_blank" class="btn btn-sm">Open Team Submission</a>
-            <a href="logout.php" class="logout">Log out</a>
+<body class="board-page">
+    <div class="board-header">
+        <div class="team-badge"><?php echo htmlspecialchars($viewerLabel); ?></div>
+        <div class="board-header-content">
+            <span class="phase-pill" id="phasePill">Loading...</span>
+            <h1>Web Feud: Information Security Edition</h1>
+            <p class="muted" id="messageLine"></p>
+        </div>
+        <div class="header-right">
+            <a href="team_submission.php" id="ctfSubmitBtn" class="ctf-submit-link">Submit CTF</a>
+            <a href="<?php echo htmlspecialchars($logoutHref); ?>" class="logout-link">Log out</a>
         </div>
     </div>
 
-    <div class="container" id="app">Loading...</div>
+    <div class="container">
+        <div class="eliminated-banner" id="eliminatedBanner">📺 Your team has been eliminated — sit back and enjoy the rest of the show!</div>
+        <div id="app"></div>
+    </div>
 
 <script>
-async function api(action, data = {}) {
-    const form = new FormData();
-    form.append('action', action);
-    for (const k in data) form.append(k, data[k]);
-    const res = await fetch('../api/action.php', { 
-        method: 'POST', 
-        body: form,
-        credentials: 'same-origin'
-    });
-    return res.json();
+const myTeamId = <?php echo json_encode($isPlayerView ? (int)$_SESSION['player_team_id'] : null); ?>;
+const authMode = <?php echo json_encode($isPlayerView ? 'player' : 'host'); ?>;
+const csrfToken = <?php echo json_encode($csrfToken); ?>;
+const CATEGORY_COLORS = ['','',''];
+let raisePending = false;
+let raiseStatusText = '';
+let raiseStatusQuestionKey = null;
+let lastHostAuthSignal = localStorage.getItem('webFeudHostAuthChanged') || '';
+let pollTimer = null;
+let polling = false;
+let consecutivePollFailures = 0;
+
+function redirectToLogin(path) {
+    window.location.replace(path || (authMode === 'host' ? '../host/login.php' : 'player_login.php'));
+}
+
+async function fetchJson(url, options = {}, timeoutMs = 8000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const res = await fetch(url, {
+            credentials: 'same-origin',
+            cache: 'no-store',
+            ...options,
+            signal: controller.signal
+        });
+        const text = await res.text();
+        let data = null;
+        try {
+            data = text ? JSON.parse(text) : null;
+        } catch (e) {
+            throw new Error('Invalid server response');
+        }
+        if (res.status === 401) {
+            redirectToLogin(data && data.redirect);
+            return null;
+        }
+        if (!res.ok) {
+            throw new Error((data && data.error) || 'Request failed');
+        }
+        return data;
+    } finally {
+        clearTimeout(timer);
+    }
 }
 
 async function fetchState() {
-    const res = await fetch('../api/state.php?view=host');
-    return res.json();
+    return fetchJson(`../api/state.php?view=board&auth=${encodeURIComponent(authMode)}`);
+}
+
+function scoreboardHtml(teams) {
+    return '<div class="scoreboard">' + teams.map(t => `
+        <div class="score-card">
+            <div class="name">${escapeHtml(t.name)}</div>
+            <div><span class="status-tag status-${t.status}">${t.status}</span></div>
+            <div class="pts">${t.score}</div>
+        </div>
+    `).join('') + '</div>';
 }
 
 function escapeHtml(s) {
     return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-let currentState = null;
-
-function teamListHtml(teams) {
-    return teams.map(t => {
-        const label = t.status === 'eliminated' ? 'Eliminated'
-            : t.status === 'finalist' ? 'Finalist'
-            : t.status === 'winner' ? 'Winner'
-            : 'Active';
-        return `
-        <div class="team-row">
-            <div><span class="team-name">${escapeHtml(t.name)}</span>
-                <span class="status-tag status-${t.status}">${label}</span></div>
-            <div>
-                <span class="team-score">${t.score} pts</span>
-            </div>
-        </div>
-    `}).join('');
-}
-
-function judgeButtonsHtml(teams) {
-    return teams.filter(t => t.status === 'active').map(t => `
-        <div class="team-row">
-            <span class="team-name">${escapeHtml(t.name)}</span>
-            <div>
-                <button class="btn-sm btn-success" onclick="judge(${t.id}, 'correct')">Correct</button>
-                <button class="btn-sm btn-danger" onclick="judge(${t.id}, 'wrong')">Wrong</button>
-            </div>
-        </div>
-    `).join('');
-}
-
-function boardGridHtml(categories) {
-    const rows = Math.max(...categories.map(c => c.questions.length));
-    let html = `<div class="board-grid" style="grid-template-columns: repeat(${categories.length}, 1fr);">`;
-    categories.forEach(c => html += `<div class="board-col-header">${escapeHtml(c.name)}</div>`);
-    for (let r = 0; r < rows; r++) {
-        categories.forEach(c => {
-            const q = c.questions[r];
-            if (!q) { html += '<div></div>'; return; }
-            html += `<div class="board-cell ${q.is_used ? 'used' : ''}" onclick="${q.is_used ? '' : `selectQuestion(${q.id})`}">${q.is_used ? '' : '₱' + q.points}</div>`;
-        });
-    }
-    html += '</div>';
-    return html;
-}
-
 function render(state) {
-    currentState = state;
+    if (!state) return;
+    const activeQuestionKey = state.current_question ? String(state.current_question.id) : null;
+    if (activeQuestionKey !== raiseStatusQuestionKey) {
+        raiseStatusQuestionKey = activeQuestionKey;
+        raiseStatusText = '';
+    }
+
     document.getElementById('phasePill').textContent = state.phase.replace('_', ' ');
+    document.getElementById('messageLine').textContent = state.message || '';
+
+    const myTeam = state.teams.find(t => t.id === myTeamId);
+    const isEliminated = !!myTeam && myTeam.status === 'eliminated';
+    document.getElementById('eliminatedBanner').classList.toggle('show', isEliminated && state.phase !== 'finished');
+
+    // Only the two teams still in it (finalist, or winner after capturing
+    // the flag) should ever see the Submit CTF button — an eliminated
+    // team has nothing to submit and is just watching from here on.
+    const canSubmitCtf = !!myTeam && (myTeam.status === 'finalist' || myTeam.status === 'winner');
+    document.getElementById('ctfSubmitBtn').classList.toggle('show', state.phase === 'ctf' && canSubmitCtf);
+
     let html = '';
 
-    // ---------- Team management (always visible) ----------
-    html += `<div class="grid-2">`;
-    html += `<div>`;
-
     if (state.phase === 'lobby') {
-        html += `<div class="card">
-            <h2>1. Register teams</h2>
-            <form onsubmit="return addTeam(event)">
-                <input type="text" id="newTeamName" placeholder="Team name" required>
-                <button class="btn-primary" type="submit" id="addTeamBtn">Add team</button>
-            </form>
-            <div id="addTeamStatus" style="margin-top:10px;"></div>
-        </div>`;
+        html += `<div class="card"><h2>Waiting for the host to start the game...</h2></div>`;
+        html += `<div class="main-board-center-image"><img src="../pictures/web feud.png" alt="Web Feud" /></div>`;
+        html += scoreboardHtml(state.teams);
     }
 
     if (state.phase === 'elimination') {
-        if (state.current_question) {
+        if (state.current_question && state.current_question.question_visible) {
             const q = state.current_question;
-            html += `<div class="card">
-                <h2>Question for ₱${q.points}</h2>
-                ${!q.question_visible ? `<button class="btn-primary" onclick="revealQuestion()">Reveal question on board</button>` : `
-                    <p><strong>Q:</strong> ${escapeHtml(state._questionText || '')}</p>
-                    ${!q.answer_visible ? `<button class="btn-warning" onclick="revealAnswer()">Reveal answer</button>` : `<p class="muted">Answer: ${escapeHtml(q.answer || '')}</p>`}
-                    <h3>Which team answered correctly?</h3>
-                    ${judgeButtonsHtml(state.teams)}
-                    <button class="btn-sm" onclick="judge(0, 'close')">No correct answer / close question</button>
-                `}
-            </div>`;
+            html += `<div class="question-panel">${escapeHtml(q.question)}</div>`;
+            if (q.answer_visible) {
+                html += `<div class="question-panel answer-panel">Answer: ${escapeHtml(q.answer)}</div>`;
+            }
         } else {
-            html += `<div class="card"><h2>Elimination round board</h2>${boardGridHtml(state.board)}</div>`;
+            html += boardGridHtml(state.board);
         }
+        html += raisePanelHtml(state, myTeam);
+        html += scoreboardHtml(state.teams);
     }
 
     if (state.phase === 'final_wager') {
-        const finalists = state.teams.filter(t => t.status === 'finalist');
-        html += `<div class="card"><h2>Last 2 standing: wagers</h2>
-            <p class="muted">Enter each finalist's secret wager (kept off the Main Board).</p>`;
-        finalists.forEach(t => {
-            const w = (state.final.wagers.find(w => w.team_id === t.id) || {}).wager ?? 0;
-            html += `<div class="wager-row">
-                <span class="team-name">${escapeHtml(t.name)} (score: ${t.score})</span>
-                <input type="number" min="0" max="${t.score}" value="${w}" id="wager_${t.id}">
-                <button class="btn-sm" onclick="setWager(${t.id})">Save wager</button>
-            </div>`;
-        });
-        html += `<button class="btn-primary" onclick="revealFinalQuestion()">Reveal final question on board</button></div>`;
+        html += `<div class="card"><h2>Last 2 Standing</h2>
+            <p class="muted">Finalists are secretly wagering points on the Final Jeopardy question.</p></div>`;
+        html += scoreboardHtml(state.teams.filter(t => t.status === 'finalist'));
     }
 
-    if (state.phase === 'final_question' || state.phase === 'final_reveal') {
-        const finalists = state.teams.filter(t => t.status === 'finalist');
-        html += `<div class="card"><h2>Final Jeopardy question</h2>
-            <p>${escapeHtml(state.final.question || '')}</p>
-            <p class="muted">Answer: ${escapeHtml(state.final.answer || '(hidden until graded)')}</p>`;
-        finalists.forEach(t => {
-            const w = state.final.wagers.find(w => w.team_id === t.id) || {};
-            html += `<div class="team-row">
-                <span class="team-name">${escapeHtml(t.name)} (wagered ${w.wager})</span>
-                <div>
-                    <button class="btn-sm btn-success" onclick="gradeFinal(${t.id}, true)" ${w.answered_correct !== null ? 'disabled' : ''}>Correct</button>
-                    <button class="btn-sm btn-danger" onclick="gradeFinal(${t.id}, false)" ${w.answered_correct !== null ? 'disabled' : ''}>Wrong</button>
-                </div>
-            </div>`;
-        });
-        html += `</div>`;
+    if (state.phase === 'final_question') {
+        html += `<div class="question-panel">${escapeHtml(state.final.question || '')}</div>`;
+        html += scoreboardHtml(state.teams.filter(t => t.status === 'finalist' || t.status === 'winner'));
+    }
+
+    if (state.phase === 'final_reveal') {
+        html += `<div class="question-panel">${escapeHtml(state.final.question || '')}</div>`;
+        html += `<div class="question-panel answer-panel">Answer: ${escapeHtml(state.final.answer || '')}</div>`;
+        html += scoreboardHtml(state.teams.filter(t => t.status === 'finalist' || t.status === 'winner'));
     }
 
     if (state.phase === 'ctf') {
         const c = state.ctf;
-        html += `<div class="card">
-            <h2>CTF resolution: ${escapeHtml(c.title)}</h2>
+        html += `<div class="ctf-panel">
+            <h2>CTF Resolution: ${escapeHtml(c.title)}${c.round ? ` <span class="muted" style="font-size:1rem;">(Round ${c.round})</span>` : ''}</h2>
             <div class="timer">${formatTime(c.remaining)}</div>
-            ${c.prompt_visible ? `
-                <div class="ctf-prompt">${escapeHtml(c.prompt)}</div>
-            ` : `
-                <div class="ctf-prompt muted">The cipher is hidden. Click the button below to reveal it.</div>
-                <button class="btn-primary" onclick="revealCipher()">Reveal cipher</button>
-            `}
-            <p class="muted"><strong>Host hint:</strong> ${escapeHtml(c.hint || '')}</p>
-            <p class="muted">Waiting for a finalist to submit the correct flag from the Team Submission page...</p>
-            <h3>Manual override</h3>
-            ${state.teams.filter(t => t.status === 'finalist').map(t =>
-                `<button class="btn-sm btn-warning" onclick="declareWinner(${t.id})">Declare ${escapeHtml(t.name)} winner</button>`
-            ).join(' ')}
+            ${c.prompt_visible ? `<div class="ctf-prompt">${escapeHtml(c.prompt)}</div>` : `<div class="ctf-prompt muted">The cipher is hidden until the host reveals it.</div>`}
+            <p class="muted">Finalists: submit your flag from the Team Submission page on your device.</p>
         </div>`;
+        html += scoreboardHtml(state.teams.filter(t => t.status === 'finalist' || t.status === 'winner'));
     }
 
     if (state.phase === 'finished') {
-        html += `<div class="card"><h2>🏆 ${escapeHtml(state.winner || '')} wins!</h2>
-            <button class="btn-danger" onclick="resetGame()">Reset game for a new session</button></div>`;
+        html += `<div class="winner-banner">🏆 ${escapeHtml(state.winner || '')} wins! 🏆</div>`;
+        html += scoreboardHtml(state.teams);
     }
-
-    html += `</div>`; // close left column
-
-    // ---------- Right column: teams + phase controls ----------
-    html += `<div>`;
-    const activeCount = state.teams.filter(t => t.status === 'active').length;
-    const eliminatedCount = state.teams.filter(t => t.status === 'eliminated').length;
-    html += `<div class="card"><h2>Teams</h2>
-        <p class="muted">Active: ${activeCount} · Eliminated: ${eliminatedCount}</p>
-        ${teamListHtml(state.teams)}
-    </div>`;
-
-    html += `<div class="card"><h2>Game controls</h2>`;
-    if (state.phase === 'lobby') {
-        html += `<button class="btn-primary" ${state.teams.length < 3 ? 'disabled' : ''} onclick="startGame()">Start elimination round</button>`;
-    }
-    if (state.phase === 'elimination') {
-        const activeCount = state.teams.filter(t => t.status === 'active').length;
-        html += `<button class="btn-primary" ${activeCount < 2 ? 'disabled' : ''} onclick="startFinal()">Advance to Last 2 Standing</button>`;
-    }
-    html += `<br><br><button class="btn-danger btn-sm" onclick="resetGame()">Reset entire game</button>`;
-    html += `</div>`;
-    html += `</div>`; // close right column
-    html += `</div>`; // close grid-2
 
     document.getElementById('app').innerHTML = html;
+}
+
+function raisePanelHtml(state, myTeam) {
+    const firstTeamName = state.raised_hand_team_name || '';
+    const raisedTeams = Array.isArray(state.raised_teams) ? state.raised_teams.map(Number) : [];
+    const alreadyRaised = raisedTeams.includes(Number(myTeamId));
+    const questionVisible = !!state.current_question && state.current_question.question_visible;
+    const canRaise = !!myTeam
+        && myTeam.status === 'active'
+        && !state.raised_hand_team_id
+        && !alreadyRaised
+        && !raisePending
+        && !questionVisible;
+    const buttonText = raisePending ? 'Raising...' : alreadyRaised ? 'Raised' : state.raised_hand_team_id ? 'Locked' : 'Raise';
+    const status = firstTeamName
+        ? `${escapeHtml(firstTeamName)} raised first`
+        : (raiseStatusText || 'First team to click appears here.');
+
+    return `<div class="raise-panel">
+        <h2>First Raise</h2>
+        <div class="raised-team-name">${firstTeamName ? escapeHtml(firstTeamName) : '<span class="muted">Waiting...</span>'}</div>
+        <button type="button" class="raise-btn" onclick="raiseHand()" ${canRaise ? '' : 'disabled'}>${buttonText}</button>
+        <div class="raise-status">${status}</div>
+    </div>`;
+}
+
+async function raiseHand() {
+    if (raisePending) return;
+
+    const state = await fetchState();
+    if (!state || state.phase !== 'elimination' || (state.current_question && state.current_question.question_visible)) {
+        raiseStatusText = 'No active raise window yet.';
+        loop();
+        return;
+    }
+
+    raisePending = true;
+    raiseStatusText = 'Sending raise...';
+    render(state);
+
+    try {
+        const data = await fetchJson('../api/raise_hand.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+            body: JSON.stringify({ question_key: 'elimination' })
+        });
+        if (!data) return;
+        raiseStatusText = data.success
+            ? 'You raised first!'
+            : (data.first_team_name ? `${data.first_team_name} raised first.` : (data.error || 'Raise was not recorded.'));
+    } catch (e) {
+        raiseStatusText = 'Could not raise. Please try again.';
+    } finally {
+        raisePending = false;
+        loop();
+    }
 }
 
 function formatTime(sec) {
@@ -607,88 +721,69 @@ function formatTime(sec) {
     return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-async function addTeam(e) {
-    e.preventDefault();
-    const nameInput = document.getElementById('newTeamName');
-    const name = nameInput.value.trim();
-    const statusDiv = document.getElementById('addTeamStatus');
-    const btn = document.getElementById('addTeamBtn');
-    
-    if (!name) {
-        statusDiv.innerHTML = '<span style="color:#ef4444;">Team name cannot be empty</span>';
-        return false;
+function boardGridHtml(categories) {
+    if (!categories || !categories.length) return '';
+    const rows = Math.max(...categories.map(c => c.questions.length));
+    let html = `<div class="board-grid" style="grid-template-columns: repeat(${categories.length}, 1fr);">`;
+    categories.forEach(c => html += `<div class="board-col-header">${escapeHtml(c.name)}</div>`);
+    for (let r = 0; r < rows; r++) {
+        categories.forEach(c => {
+            const q = c.questions[r];
+            if (!q) { html += '<div></div>'; return; }
+            html += `<div class="board-cell ${q.is_used ? 'used' : ''}">${q.is_used ? '' : '₱' + q.points}</div>`;
+        });
     }
-    
-    btn.disabled = true;
-    statusDiv.innerHTML = '<span style="color:#3b82f6;">Adding team...</span>';
-    
-    try {
-        const result = await api('add_team', { name });
-        if (result.error) {
-            statusDiv.innerHTML = `<span style="color:#ef4444;">Error: ${escapeHtml(result.error)}</span>`;
-            btn.disabled = false;
-        } else if (result.ok) {
-            statusDiv.innerHTML = `<span style="color:#22c55e;">✓ Team added successfully!</span>`;
-            nameInput.value = '';
-            await new Promise(r => setTimeout(r, 800));
-            await loop();
-        }
-    } catch (error) {
-        statusDiv.innerHTML = `<span style="color:#ef4444;">Error: ${escapeHtml(error.message)}</span>`;
-        btn.disabled = false;
-    }
-    return false;
-}
-async function eliminateTeam(id) { await api('eliminate', { team_id: id }); loop(); }
-async function reinstateTeam(id) { await api('reinstate', { team_id: id }); loop(); }
-async function startGame() { 
-    try {
-        const result = await api('start_game');
-        if (result.error) {
-            alert('Error: ' + result.error);
-        } else {
-            await loop();
-        }
-    } catch (e) {
-        alert('Failed to start game: ' + e.message);
-    }
-}
-async function selectQuestion(id) { await api('select_question', { question_id: id }); loop(); }
-async function revealQuestion() { await api('reveal_question'); loop(); }
-async function revealAnswer() { await api('reveal_answer'); loop(); }
-async function judge(teamId, result) { await api('judge', { team_id: teamId, result }); loop(); }
-async function startFinal() { await api('start_final'); loop(); }
-async function setWager(teamId) {
-    const wager = document.getElementById('wager_' + teamId).value;
-    const result = await api('set_wager', { team_id: teamId, wager });
-    if (!result.ok) alert(result.error || 'Unable to save wager.');
-    loop();
-}
-async function revealCipher() {
-    const result = await api('start_cipher');
-    if (!result.ok) alert(result.error || 'Unable to reveal the cipher.');
-    loop();
-}
-async function revealFinalQuestion() { await api('reveal_final_question'); loop(); }
-async function gradeFinal(teamId, correct) { await api('grade_final', { team_id: teamId, correct: correct ? 1 : 0 }); loop(); }
-async function declareWinner(teamId) {
-    if (!confirm('Declare this team the winner?')) return;
-    await api('declare_winner', { team_id: teamId });
-    loop();
-}
-async function resetGame() {
-    if (!confirm('This resets ALL scores and progress. Continue?')) return;
-    await api('reset_game');
-    loop();
+    html += '</div>';
+    return html;
 }
 
 async function loop() {
-    const state = await fetchState();
-    if (state.current_question) state._questionText = state.current_question.question;
-    render(state);
+    if (polling) return;
+    polling = true;
+    try {
+        const state = await fetchState();
+        if (state) {
+            consecutivePollFailures = 0;
+            render(state);
+        }
+    } catch (e) {
+        consecutivePollFailures++;
+    } finally {
+        polling = false;
+        clearTimeout(pollTimer);
+        pollTimer = setTimeout(loop, consecutivePollFailures ? Math.min(10000, 1500 * consecutivePollFailures) : 1500);
+    }
 }
+
+function hostAuthSignalChanged() {
+    const current = localStorage.getItem('webFeudHostAuthChanged') || '';
+    const changed = current && current !== lastHostAuthSignal;
+    if (changed) {
+        lastHostAuthSignal = current;
+    }
+    return changed;
+}
+
+window.addEventListener('storage', (event) => {
+    if (event.key === 'webFeudHostAuthChanged') {
+        lastHostAuthSignal = event.newValue || '';
+        loop();
+    }
+});
+
+window.addEventListener('focus', () => {
+    if (hostAuthSignalChanged()) {
+        loop();
+    }
+});
+
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && hostAuthSignalChanged()) {
+        loop();
+    }
+});
+
 loop();
-setInterval(loop, 1500);
 </script>
 </body>
 </html>

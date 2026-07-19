@@ -117,7 +117,7 @@
             <p class="muted" style="font-size: 18px; max-width: 680px; margin: 0 auto;">Jeopardy-style elimination round &rarr; Last 2 Standing &rarr; CTF resolution</p>
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; text-align: left;">
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; text-align: left; max-width: 760px; margin: 0 auto;">
             <div class="card" style="margin-bottom: 0; display: flex; flex-direction: column;">
                 <h2>Main Board</h2>
                 <p class="muted" style="flex-grow: 1;">Players enter their name here first, then they can access the board.</p>
@@ -128,12 +128,6 @@
                 <h2>Host Dashboard</h2>
                 <p class="muted" style="flex-grow: 1;">The host uses this screen to run the game (PIN protected).</p>
                 <a class="btn btn-warning" href="host/login.php" target="_blank" style="text-align: center; width: 100%;">Open Host Dashboard</a>
-            </div>
-
-            <div class="card" style="margin-bottom: 0; display: flex; flex-direction: column;">
-                <h2>Team Flag Submission</h2>
-                <p class="muted" style="flex-grow: 1;">Finalists open this on their own device during the CTF stage.</p>
-                <a class="btn btn-success" href="team/submit.php" target="_blank" style="text-align: center; width: 100%;">Open Team Submission</a>
             </div>
         </div>
     </div>

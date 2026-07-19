@@ -17,6 +17,34 @@ A web-based classroom game for BSIT Information Security II — built with HTML5
 4. If your MySQL root user has a password, update `config/db.php` (`DB_PASS`).
 5. Visit `http://localhost/webfeud_ctf/` — this is your landing page with links to all three interfaces.
 
+## Deployment database settings
+
+`config/db.php` reads deployment credentials from environment variables, then falls back to local XAMPP defaults.
+
+Supported variable names:
+
+- Generic: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`
+- Clever Cloud add-on variables: `MYSQL_ADDON_HOST`, `MYSQL_ADDON_PORT`, `MYSQL_ADDON_DB`, `MYSQL_ADDON_USER`, `MYSQL_ADDON_PASSWORD`
+- Clever Cloud/MySQL URL variables: `MYSQL_ADDON_URI` or `DATABASE_URL`
+
+## Deploying on Clever Cloud
+
+Use a PHP application on Clever Cloud and attach/use your Clever Cloud MySQL database.
+
+If Clever Cloud does not automatically inject the MySQL add-on variables into the app, add these environment variables manually:
+
+```
+DB_HOST=your-clever-cloud-mysql-host
+DB_PORT=3306
+DB_NAME=your-clever-cloud-database-name
+DB_USER=your-clever-cloud-database-user
+DB_PASS=your-clever-cloud-database-password
+```
+
+Then import `database/schema.sql` into the Clever Cloud MySQL database before opening the app.
+
+Do not commit production credentials into the repository. If a password is pasted into chat or committed by accident, rotate it in Clever Cloud and update the app environment variable.
+
 ## The three interfaces
 
 | Interface | URL | Used by |
