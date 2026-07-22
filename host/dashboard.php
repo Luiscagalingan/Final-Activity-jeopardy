@@ -674,7 +674,7 @@ function teamListHtml(teams) {
             : t.status === 'winner' ? 'Winner'
             : 'Active';
         return `
-        <div class="team-row">
+        <div class="team-row" style="cursor:pointer" onclick="manageTeam(${t.id})" title="Manage team and members">
             <div><span class="team-name">${escapeHtml(t.name)}</span>
                 <span class="status-tag status-${t.status}">${label}</span></div>
             <div>
@@ -727,6 +727,58 @@ function raisedHandHtml(state) {
         </div>`;
     }).join('');
     return `<div class="raise-host-list">${ranking}</div>`;
+}
+
+async function manageTeam(teamId) {
+    const team = (currentState.teams || []).find(t => t.id === teamId);
+    if (!team) return;
+    const members = team.members || [];
+    const memberHtml = members.length ? members.map((m, i) => `
+        <div style="display:flex;gap:8px;margin:8px 0;align-items:center">
+            <input id="memberName${m.id}" class="swal2-input" style="margin:0;flex:1" value="${escapeHtml(m.name)}">
+            <button type="button" class="btn-sm btn-danger" onclick="removeMember(${m.id})">Delete</button>
+        </div>`).join('') : '<p class="muted">No members registered yet.</p>';
+    const result = await Swal.fire(hostSwalOptions({
+        title: 'Manage team',
+        html: `<input id="teamNameEdit" class="swal2-input" value="${escapeHtml(team.name)}" placeholder="Team name">
+            <hr><h3 style="text-align:left">Members (${members.length}/5)</h3>${memberHtml}
+            ${members.length < 5 ? '<input id="newMemberName" class="swal2-input" placeholder="New member name">' : ''}`,
+        showCancelButton: true, confirmButtonText: 'Save changes', cancelButtonText: 'Close',
+        width: 620,
+        preConfirm: () => ({
+            teamName: document.getElementById('teamNameEdit')?.value.trim() || '',
+            members: members.map(m => ({ id: m.id, name: document.getElementById(`memberName${m.id}`)?.value.trim() || '' })),
+            newName: document.getElementById('newMemberName')?.value.trim() || ''
+        })
+    }));
+    if (!result.isConfirmed) return;
+    const form = result.value || {};
+    const teamName = form.teamName;
+    if (!teamName) return showHostAlert('Invalid team name', 'Team name cannot be empty.');
+    let response = await api('update_team', { team_id: teamId, name: teamName });
+    if (response.error) return showHostAlert('Unable to update team', response.error);
+    for (const m of members) {
+        const edited = (form.members || []).find(x => x.id === m.id);
+        if (edited && edited.name && edited.name !== m.name) {
+            response = await api('update_member', { member_id: m.id, name: edited.name });
+            if (response.error) return showHostAlert('Unable to update member', response.error);
+        }
+    }
+    const newName = form.newName;
+    if (newName) {
+        response = await api('add_member', { team_id: teamId, name: newName });
+        if (response.error) return showHostAlert('Unable to add member', response.error);
+    }
+    await loop();
+}
+
+async function removeMember(memberId) {
+    const result = await Swal.fire(hostSwalOptions({title:'Delete member?', text:'This member will be removed from the team.', icon:'warning', showCancelButton:true, confirmButtonText:'Delete', confirmButtonColor:'#e74c3c'}));
+    if (!result.isConfirmed) return;
+    const response = await api('remove_member', { member_id: memberId });
+    if (response.error) return showHostAlert('Unable to delete member', response.error);
+    Swal.close();
+    await loop();
 }
 
 // Renders the list of flag attempts for the active CTF challenge, newest

@@ -14,7 +14,7 @@ $hostOnlyActions = [
     'add_team', 'remove_team', 'start_game', 'select_question', 'reveal_question',
     'reveal_answer', 'judge', 'eliminate', 'reinstate', 'start_final',
     'reveal_final_question', 'reveal_final_answer', 'grade_final', 'start_ctf', 'start_cipher', 'next_ctf_round',
-    'declare_winner', 'reset_game',
+    'declare_winner', 'reset_game', 'add_member', 'update_team', 'update_member', 'remove_member',
 ];
 
 if (in_array($action, $hostOnlyActions, true) && empty($_SESSION['host_auth'])) {
@@ -89,6 +89,45 @@ function resolve_ctf_round_if_ready(int $ctfId): array {
 }
 
 switch ($action) {
+
+    case 'add_member': {
+        $teamId = (int)($_POST['team_id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        if (!$teamId || !$name) json_response(['error' => 'Member name is required'], 400);
+        if (!get_team($teamId)) json_response(['error' => 'Team not found'], 404);
+        if (count(get_team_members($teamId)) >= 5) json_response(['error' => 'A team can have up to 5 members'], 400);
+        $stmt = $pdo->prepare('INSERT INTO team_members (full_name, team_id) VALUES (?, ?)');
+        $stmt->execute([$name, $teamId]);
+        json_response(['ok' => true]);
+        break;
+    }
+
+    case 'update_team': {
+        $teamId = (int)($_POST['team_id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        if (!$teamId || !$name) json_response(['error' => 'Team name is required'], 400);
+        $stmt = $pdo->prepare('UPDATE teams SET name = ? WHERE id = ?');
+        $stmt->execute([$name, $teamId]);
+        json_response(['ok' => true]);
+        break;
+    }
+
+    case 'update_member': {
+        $memberId = (int)($_POST['member_id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        if (!$memberId || !$name) json_response(['error' => 'Member name is required'], 400);
+        $stmt = $pdo->prepare('UPDATE team_members SET full_name = ? WHERE id = ?');
+        $stmt->execute([$name, $memberId]);
+        json_response(['ok' => true]);
+        break;
+    }
+
+    case 'remove_member': {
+        $stmt = $pdo->prepare('DELETE FROM team_members WHERE id = ?');
+        $stmt->execute([(int)($_POST['member_id'] ?? 0)]);
+        json_response(['ok' => true]);
+        break;
+    }
 
     case 'add_team': {
         $name = trim($_POST['name'] ?? '');

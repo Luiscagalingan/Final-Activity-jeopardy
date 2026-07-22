@@ -46,6 +46,7 @@ $payload = [
             'name'   => $t['name'],
             'score'  => (int)$t['score'],
             'status' => $t['status'],
+            'members' => array_map(static fn($m) => ['id' => (int)$m['id'], 'name' => $m['full_name']], get_team_members((int)$t['id'])),
         ];
     }, $teams),
     'board' => $board,

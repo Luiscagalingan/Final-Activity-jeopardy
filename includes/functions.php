@@ -72,6 +72,13 @@ function get_team(int $id): ?array {
     return $row ?: null;
 }
 
+function get_team_members(int $teamId): array {
+    $pdo = get_db();
+    $stmt = $pdo->prepare('SELECT id, full_name, team_id FROM team_members WHERE team_id = ? ORDER BY id');
+    $stmt->execute([$teamId]);
+    return $stmt->fetchAll();
+}
+
 function get_board(): array {
     $pdo = get_db();
     $categories = $pdo->query(
