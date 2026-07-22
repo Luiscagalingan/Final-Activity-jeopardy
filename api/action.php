@@ -461,19 +461,32 @@ switch ($action) {
     }
 
     case 'reset_game': {
-        $pdo->exec('UPDATE questions SET is_used = 0');
-        $pdo->exec('UPDATE ctf_challenges SET is_used = 0');
-        $pdo->exec("UPDATE teams SET score = 0, status = 'active'");
-        $pdo->exec('DELETE FROM final_wagers');
-        $pdo->exec('DELETE FROM flag_submissions');
-        clear_raise_hand_state();
-        update_state([
-            'phase' => 'lobby', 'current_question_id' => null, 'question_visible' => 0,
-            'answer_visible' => 0, 'active_ctf_id' => null, 'ctf_start_time' => null,
-            'ctf_prompt_visible' => 0, 'ctf_winner_team_id' => null, 'winner_team_id' => null,
-            'feedback_type' => null, 'feedback_team_id' => null, 'feedback_nonce' => 0, 'message' => null,
-        ]);
-        json_response(['ok' => true]);
+        // Keep the reset all-or-nothing. This also prevents a half-reset game
+        // when the deployed database rejects one of the statements.
+        try {
+            $pdo->beginTransaction();
+            $pdo->exec('UPDATE questions SET is_used = 0');
+            $pdo->exec('UPDATE ctf_challenges SET is_used = 0');
+            $pdo->exec("UPDATE teams SET score = 0, status = 'active'");
+            // Remove child rows first in case foreign-key checks are enabled.
+            $pdo->exec('DELETE FROM flag_submissions');
+            $pdo->exec('DELETE FROM final_wagers');
+            update_state([
+                'phase' => 'lobby', 'current_question_id' => null, 'question_visible' => 0,
+                'answer_visible' => 0, 'active_ctf_id' => null, 'ctf_start_time' => null,
+                'ctf_prompt_visible' => 0, 'ctf_winner_team_id' => null, 'winner_team_id' => null,
+                'feedback_type' => null, 'feedback_team_id' => null, 'feedback_nonce' => 0, 'message' => null,
+            ]);
+            $pdo->commit();
+            clear_raise_hand_state();
+            json_response(['ok' => true]);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            error_log('reset_game failed: ' . $e->getMessage());
+            json_response(['error' => 'Unable to reset game. Please check the database schema and try again.'], 500);
+        }
         break;
     }
 
