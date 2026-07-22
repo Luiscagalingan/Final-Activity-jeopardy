@@ -251,6 +251,14 @@ switch ($action) {
         $stmt = $pdo->prepare("UPDATE teams SET status = 'eliminated' WHERE status = 'active' AND id NOT IN (?, ?)");
         $stmt->execute([(int)$finalists[0]['id'], (int)$finalists[1]['id']]);
 
+        // Keep zero-value finalist records for grading state only. The wager
+        // feature is removed; this table now tracks each finalist's verdict.
+        $pdo->exec('DELETE FROM final_wagers');
+        foreach ($finalists as $t) {
+            $stmt = $pdo->prepare('INSERT INTO final_wagers (team_id, wager) VALUES (?, 0)');
+            $stmt->execute([(int)$t['id']]);
+        }
+
         clear_raise_hand_state();
 
         update_state([
@@ -291,8 +299,8 @@ switch ($action) {
         $teamId = (int)$_POST['team_id'];
         $correct = $_POST['correct'] === '1';
         $state = get_state();
-        if ($state['phase'] !== 'final_reveal') {
-            json_response(['error' => 'Show the final answer on the Main Dashboard before grading finalists'], 400);
+        if (!in_array($state['phase'], ['final_question', 'final_reveal'], true)) {
+            json_response(['error' => 'The Last 2 Standing question is not active'], 400);
         }
 
         $pdo->beginTransaction();

@@ -17,17 +17,17 @@ $csrfToken = csrf_token();
     }
 
     html, body {
-        margin: 0 !important;
-        padding: 0 !important;
+        margin: 0;
+        padding: 0;
         min-height: 100vh;
     }
 
     body {
         font-family: 'Segoe UI', Arial, sans-serif;
         color: #e2e8f0;
-        background: #0c1f5c !important;
+        background: #0c1f5c;
         background-image:
-            radial-gradient(circle at 50% 0%, #1a3a8f 0%, #0c1f5c 35%, #060f33 70%, #02071a 100%) !important;
+            radial-gradient(circle at 50% 0%, #1a3a8f 0%, #0c1f5c 35%, #060f33 70%, #02071a 100%);
         background-attachment: fixed;
         position: relative;
     }
@@ -510,7 +510,7 @@ $csrfToken = csrf_token();
     }
 
     .swal2-popup.webfeud-swal-popup {
-        border-radius: 18px !important;
+        border-radius: 18px;
         border: 1px solid rgba(255, 215, 0, 0.4);
         box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
     }
@@ -525,7 +525,7 @@ $csrfToken = csrf_token();
 
     .swal2-confirm.webfeud-swal-confirm,
     .swal2-cancel.webfeud-swal-cancel {
-        border-radius: 12px !important;
+        border-radius: 12px;
         font-weight: 800;
         padding: 10px 22px;
     }
@@ -863,7 +863,9 @@ function render(state) {
             ${raisedHandHtml(state)}`;
         finalists.forEach(t => {
             const w = state.final.wagers.find(w => w.team_id === t.id) || {};
-            const gradingDisabled = state.phase !== 'final_reveal' || w.answered_correct !== null;
+            // The host may grade as soon as one finalist raises a hand;
+            // waiting for both raises is not required.
+            const gradingDisabled = w.answered_correct !== null;
             html += `<div class="team-row">
                 <span class="team-name">${escapeHtml(t.name)}</span>
                 <div>
@@ -1121,6 +1123,14 @@ async function loop() {
         }
     } catch (e) {
         consecutivePollFailures++;
+        const app = document.getElementById('app');
+        if (app && consecutivePollFailures >= 1) {
+            app.innerHTML = `<div class="card" style="border-color:#e74c3c">
+                <h2 style="color:#e74c3c">Unable to load host dashboard</h2>
+                <p>${escapeHtml(e.message || 'Server request failed')}</p>
+                <button class="btn-primary" onclick="loop()">Try again</button>
+            </div>`;
+        }
     } finally {
         polling = false;
         clearTimeout(pollTimer);

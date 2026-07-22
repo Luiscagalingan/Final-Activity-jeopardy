@@ -1477,6 +1477,8 @@
   function unlockRun() {
     state.runUnlocked = true;
     elements.run.hidden = false;
+    elements.run.disabled = false;
+    elements.run.title = "Run the selected cipher operation";
     understandButton.textContent = "Ready";
     understandButton.disabled = true;
   }
