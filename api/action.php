@@ -212,17 +212,13 @@ switch ($action) {
         $stmt = $pdo->prepare("UPDATE teams SET status = 'eliminated' WHERE status = 'active' AND id NOT IN (?, ?)");
         $stmt->execute([(int)$finalists[0]['id'], (int)$finalists[1]['id']]);
 
-        $pdo->exec('DELETE FROM final_wagers');
-        foreach ($finalists as $t) {
-            $stmt = $pdo->prepare('INSERT INTO final_wagers (team_id, wager) VALUES (?, 0)');
-            $stmt->execute([$t['id']]);
-        }
-
         clear_raise_hand_state();
 
         update_state([
-            'phase'   => 'final_ready',
-            'message' => 'Last 2 Standing: Review the instructions and wait for the host to reveal the question.',
+            // Wagers are no longer used. Go directly to the final question.
+            // final_question is part of the production schema enum.
+            'phase'   => 'final_question',
+            'message' => 'Last 2 Standing question is ready. Finalists may now raise their hands.',
         ]);
         json_response(['ok' => true, 'finalists' => $finalists]);
         break;
